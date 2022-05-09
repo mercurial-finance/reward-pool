@@ -1,16 +1,11 @@
 use crate::*;
-use pool_v1::*;
-use pool_v2::*;
+use pool::*;
 
-mod pool_v1;
-mod pool_v2;
+mod pool;
 
 /// Retrieve a calculator for a specific pool
-pub fn get_calculator(pool: &Account<Pool>) -> Box<dyn RewardCalculator> {
-    match pool.version {
-        PoolVersion::V1 => Box::new(RewardCalculatorV1),
-        PoolVersion::V2 => Box::new(RewardCalculatorV2),
-    }
+pub fn get_calculator() -> Box<dyn RewardCalculator> {
+    Box::new(RewardCalculatorV2)
 }
 
 /// A reward calculator handles the calculations of reward rates and user reward amounts
