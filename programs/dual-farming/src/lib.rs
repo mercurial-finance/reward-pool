@@ -48,7 +48,7 @@ pub fn update_rewards(
 ) -> Result<()> {
     let last_time_reward_applicable = last_time_reward_applicable(pool.reward_duration_end);
 
-    let calc = get_calculator(pool);
+    let calc = get_calculator();
     let (reward_a, reward_b) =
         calc.reward_per_token(pool, total_staked, last_time_reward_applicable);
 
@@ -125,8 +125,6 @@ pub mod reward_pool {
         pool.reward_b_per_token_stored = 0;
         pool.user_stake_count = 0;
         pool.version = PoolVersion::V2;
-
-        msg!("Pool: {:?}", **ctx.accounts.pool);
         Ok(())
     }
 
@@ -144,9 +142,6 @@ pub mod reward_pool {
 
         let pool = &mut ctx.accounts.pool;
         pool.user_stake_count = pool.user_stake_count.checked_add(1).unwrap();
-
-        msg!("Pool: {:?}", **ctx.accounts.pool);
-        msg!("User: {:?}", ***user);
         Ok(())
     }
 
@@ -182,8 +177,6 @@ pub mod reward_pool {
         token::close_account(cpi_ctx)?;
 
         pool.x_token_pool_vault = Pubkey::default();
-
-        msg!("Pool: {:?}", **ctx.accounts.pool);
         Ok(())
     }
 
@@ -206,8 +199,6 @@ pub mod reward_pool {
             },
         );
         token::transfer(cpi_ctx, X_STEP_DEPOSIT_REQUIREMENT)?;
-
-        msg!("Pool: {:?}", **ctx.accounts.pool);
         Ok(())
     }
 
@@ -247,9 +238,6 @@ pub mod reward_pool {
             );
             token::transfer(cpi_ctx, amount)?;
         }
-
-        msg!("Pool: {:?}", **ctx.accounts.pool);
-        msg!("User: {:?}", **ctx.accounts.user);
         Ok(())
     }
 
@@ -291,9 +279,6 @@ pub mod reward_pool {
             );
             token::transfer(cpi_ctx, spt_amount)?;
         }
-
-        msg!("Pool: {:?}", **ctx.accounts.pool);
-        msg!("User: {:?}", **ctx.accounts.user);
         Ok(())
     }
 
@@ -312,7 +297,6 @@ pub mod reward_pool {
         } else {
             return Err(ErrorCode::MaxFunders.into());
         }
-        msg!("Pool: {:?}", **ctx.accounts.pool);
         Ok(())
     }
 
@@ -327,7 +311,6 @@ pub mod reward_pool {
         } else {
             return Err(ErrorCode::CannotDeauthorizeMissingAuthority.into());
         }
-        msg!("Pool: {:?}", **ctx.accounts.pool);
         Ok(())
     }
 
@@ -343,7 +326,7 @@ pub mod reward_pool {
         let total_staked = ctx.accounts.staking_vault.amount;
         update_rewards(pool, None, total_staked).unwrap();
 
-        let calc = get_calculator(pool);
+        let calc = get_calculator();
         let (reward_a_rate, reward_b_rate) = calc.rate_after_funding(
             pool,
             &ctx.accounts.reward_a_vault,
@@ -389,8 +372,6 @@ pub mod reward_pool {
             .unwrap();
         pool.last_update_time = current_time;
         pool.reward_duration_end = current_time.checked_add(pool.reward_duration).unwrap();
-
-        msg!("Pool: {:?}", **ctx.accounts.pool);
         Ok(())
     }
 
@@ -453,9 +434,6 @@ pub mod reward_pool {
                 token::transfer(cpi_ctx, reward_amount)?;
             }
         }
-
-        msg!("Pool: {:?}", **ctx.accounts.pool);
-        msg!("User: {:?}", **ctx.accounts.user);
         Ok(())
     }
 
@@ -464,8 +442,6 @@ pub mod reward_pool {
     pub fn close_user(ctx: Context<CloseUser>) -> Result<()> {
         let pool = &mut ctx.accounts.pool;
         pool.user_stake_count = pool.user_stake_count.checked_sub(1).unwrap();
-        msg!("Pool: {:?}", **ctx.accounts.pool);
-        msg!("User: {:?}", *ctx.accounts.user);
         Ok(())
     }
 
@@ -594,8 +570,6 @@ pub mod reward_pool {
                 &[signer_seeds],
             )?;
         }
-
-        msg!("Pool: {:?}", *ctx.accounts.pool);
         Ok(())
     }
 }
