@@ -80,7 +80,7 @@ fn last_time_reward_applicable(reward_duration_end: u64) -> u64 {
 }
 
 #[program]
-pub mod reward_pool {
+pub mod dual_farming {
     use super::*;
 
     /// Initializes a new pool
