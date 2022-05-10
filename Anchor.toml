@@ -1,7 +1,7 @@
 anchor_version = "0.24.2"
 
 [workspace]
-members = ["programs/staking", "programs/single-farming"]
+members = ["programs/single-farming"]
 
 [registry]
 url = "https://anchor.projectserum.com"

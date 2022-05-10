@@ -9,5 +9,5 @@ module.exports = async function (provider) {
   // Configure client to use the provider.
   anchor.setProvider(provider);
 
-  let program = anchor.workspace.RewardPool;
+  let program = anchor.workspace.SingleFarming;
 }
