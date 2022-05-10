@@ -5,7 +5,7 @@ import { Program } from '@project-serum/anchor';
 import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { MerStaking } from "../../target/types/mer_staking";
 
-const provider = anchor.Provider.local();
+const provider = anchor.AnchorProvider.env();
 anchor.setProvider(provider);
 
 const program = anchor.workspace.MerStaking as Program<MerStaking>;
@@ -18,6 +18,8 @@ describe('mer_staking', () => {
 
   it('Mer vault Is initialized', async () => {
 
+    console.log("Program ID: ", program.programId.toString());
+    console.log("Wallet: ", provider.wallet.publicKey.toString());
     await provider.connection.confirmTransaction(
       await provider.connection.requestAirdrop(admin.publicKey, 10000000000),
       "confirmed"
@@ -27,7 +29,7 @@ describe('mer_staking', () => {
       await provider.connection.requestAirdrop(user.publicKey, 10000000000),
       "confirmed"
     );
-  
+
     merMint = await Token.createMint(
       provider.connection,
       admin,
@@ -51,7 +53,7 @@ describe('mer_staking', () => {
       ],
       program.programId
     );
-    
+
     [lpMint, lpMintNonce] = await anchor.web3.PublicKey.findProgramAddress(
       [
         Buffer.from(anchor.utils.bytes.utf8.encode("lp_mint")),
@@ -110,7 +112,7 @@ describe('mer_staking', () => {
       admin
     )
     adminLp = await vaultLpToken.createAssociatedTokenAccount(admin.publicKey);
-  
+
     const tx = await program.rpc.stake(
       new anchor.BN(merAmount),
       {
@@ -126,10 +128,10 @@ describe('mer_staking', () => {
         signers: [admin]
       }
     )
-  
+
     const userMerTokenAccount = await merMint.getAccountInfo(adminMer);
     assert.strictEqual(0, userMerTokenAccount.amount.toNumber());
-    
+
     const vaultMerTokenAccount = await merMint.getAccountInfo(vaultMer);
     assert.strictEqual(merAmount, vaultMerTokenAccount.amount.toNumber());
 
@@ -146,7 +148,7 @@ describe('mer_staking', () => {
       [],
       merAmount
     )
-  
+
     const tx = await program.rpc.stake(
       new anchor.BN(merAmount),
       {

@@ -12,7 +12,7 @@ let program = anchor.workspace.RewardPool;
 //Read the provider from the configured environmnet.
 //represents an outside actor
 //owns mints out of any other actors control, provides initial $$ to others
-const envProvider = anchor.Provider.env();
+const envProvider = anchor.AnchorProvider.env();
 
 //we allow this convenience var to change between default env and mock user(s)
 //initially we are the outside actor
