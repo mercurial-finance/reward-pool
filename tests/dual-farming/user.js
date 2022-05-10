@@ -30,7 +30,7 @@ class User {
         await utils.sendLamports(envProvider, this.pubkey, initialLamports);
 
         this.provider = new anchor.Provider(envProvider.connection, new anchor.Wallet(this.keypair), envProvider.opts);
-        let program = anchor.workspace.DualPool;
+        let program = anchor.workspace.DualFarming;
         this.program = new anchor.Program(program.idl, program.programId, this.provider);
 
         this.initialLamports = initialLamports;
