@@ -7,7 +7,7 @@ const utils = require("./utils");
 const { User, claimForUsers } = require("./user");
 const fs = require('fs');
 
-let program = anchor.workspace.RewardPool;
+let program = anchor.workspace.SingleFarming;
 
 //Read the provider from the configured environmnet.
 //represents an outside actor
@@ -92,7 +92,7 @@ describe('Multiuser Reward Pool', () => {
   });
 
   //to track cost to create pool, and compare to refund at teardown
-  let costInLamports; 
+  let costInLamports;
 
   it("Creates a pool", async () => {
     try {
@@ -110,7 +110,7 @@ describe('Multiuser Reward Pool', () => {
       await funders[1].initializePool(poolKeypair, rewardDuration2, false);
       assert.fail("did not fail to create dupe pool");
     } catch (e) { }
-    
+
     //track cost of creating a pool
     let startLamports = (await provider.connection.getBalance(funders[1].pubkey));
 
@@ -134,15 +134,15 @@ describe('Multiuser Reward Pool', () => {
     await user.init(10_000_000_000, xMintPubkey, 0, stakingMint3.publicKey, 500_000, mintB.publicKey, 0, mintB.publicKey, 0);
     await user.createUserStakingAccount(pool);
     await user.stakeTokens(100_000);
-    
+
     try {
       await funders[2].fund(1_000_000_000, 1);
       assert.fail("single stake pool should fail if funded token b");
     } catch (e) { }
 
     try {
-    var expected = (await user.getUserPendingRewardsFunction())();
-    console.log("Expected", expected[0], expected[1]);
+      var expected = (await user.getUserPendingRewardsFunction())();
+      console.log("Expected", expected[0], expected[1]);
     } catch (e) {
       console.log(e);
       process.exit();
@@ -170,7 +170,7 @@ describe('Multiuser Reward Pool', () => {
     e = expected()
     console.log("Expected", e[0], e[1]);
 
-    let [ra,rb,a,b] = await user.claim();
+    let [ra, rb, a, b] = await user.claim();
 
     console.log('ra', ra, 'rb', rb, 'a', a.toString(), 'b', b.toString());
 
@@ -193,7 +193,7 @@ describe('Multiuser Reward Pool', () => {
       users.map(a => a.createUserStakingAccount(pool))
         .concat(
           users2.map(a => a.createUserStakingAccount(pool2))
-          )
+        )
     );
 
     //user tries to create a dupe account
@@ -202,7 +202,7 @@ describe('Multiuser Reward Pool', () => {
       assert.fail("did not fail to create dupe user");
     } catch (e) { }
   });
-  
+
   it('Users closes staking account', async () => {
     await users[0].closeUser();
   });
@@ -211,7 +211,7 @@ describe('Multiuser Reward Pool', () => {
     let pool = funders[0].poolPubkey;
     await users[0].createUserStakingAccount(pool);
   });
-  
+
   it('Some users stake some tokens', async () => {
 
     await Promise.all([
@@ -248,7 +248,7 @@ describe('Multiuser Reward Pool', () => {
       assert.fail("did not fail on user unstaking when more than they have");
     } catch (e) { }
   });
-  
+
   it('Pool 2 has one initial staker', async () => {
     await users2[0].stakeTokens(250_000);
   });
@@ -266,7 +266,7 @@ describe('Multiuser Reward Pool', () => {
     //deauth a funder in the middle of the array
     await funders[1].deauthorizeFunder(tmpAuth);
   });
-  
+
   it('Funder funds pool with a delegated funder', async () => {
     //funder 1 authorize funder 2 to fund its pool
     await funders[1].authorizeFunder(funders[2].provider.wallet.publicKey);
@@ -284,7 +284,7 @@ describe('Multiuser Reward Pool', () => {
       await funders[2].fund(1, 0, funders[1].poolPubkey);
       assert.fail("did not fail on funder unauthorized funding");
     } catch (e) { }
-    
+
     //validate the pool's contents. Position 3 should be empty
     acct = await program.account.pool.fetch(funders[1].poolPubkey);
     assert.equal(acct.funders[2].toString(), anchor.web3.PublicKey.default.toString());
@@ -371,9 +371,9 @@ describe('Multiuser Reward Pool', () => {
       assert.fail("did not fail closing active staking account");
     } catch (e) { }
   });
-  
+
   it('Funder funds the pool again', async () => {
-      await funders[0].fund(1_000_000_000, 1_000_000_000);
+    await funders[0].fund(1_000_000_000, 1_000_000_000);
   });
 
   it('waits', async () => {
@@ -381,7 +381,7 @@ describe('Multiuser Reward Pool', () => {
   });
 
   it('Funder funds the pool during emissions', async () => {
-      await funders[0].fund(30_000_000_000, 50_000_000_000);
+    await funders[0].fund(30_000_000_000, 50_000_000_000);
   });
 
   it('waits', async () => {
@@ -421,7 +421,7 @@ describe('Multiuser Reward Pool', () => {
   });
 
   it('Funder funds the pool again', async () => {
-      await funders[0].fund(1_000_000_000, 1_000_000_000);
+    await funders[0].fund(1_000_000_000, 1_000_000_000);
   });
 
   it('waits', async () => {
@@ -429,7 +429,7 @@ describe('Multiuser Reward Pool', () => {
   });
 
   it('Welcome user 4 to the pool in last 3 seconds', async () => {
-      await users[3].stakeTokens(2_000_000_000);
+    await users[3].stakeTokens(2_000_000_000);
   });
 
   it('waits', async () => {
@@ -440,8 +440,8 @@ describe('Multiuser Reward Pool', () => {
     await claimForUsers(users);
     //users got a smidge less than they would have had user 4 not spoiled the fun
     assert(0.43 > await getTokenBalance(users[0].mintAPubkey)
-                      - newValA); //newValA was what they had after last round of payments; 0.4444 is what would have been if user 4 didnt join
-    let user4Amount = await getTokenBalance(users[3].mintAPubkey);                      
+      - newValA); //newValA was what they had after last round of payments; 0.4444 is what would have been if user 4 didnt join
+    let user4Amount = await getTokenBalance(users[3].mintAPubkey);
     assert(0 < user4Amount);
     assert(0.11 > user4Amount);
   });
@@ -469,7 +469,7 @@ describe('Multiuser Reward Pool', () => {
   });
 
   //pool2 ending
-  
+
   it('Pool 2 users claim', async () => {
     await claimForUsers(users2);
 
@@ -501,12 +501,12 @@ describe('Multiuser Reward Pool', () => {
     assert.strictEqual(remain2 + u1B + u2B, 1);
 
     //probably 0.833333323 and 0.166666664, or 5/6 vs 1/6, or 5x difference
-    assert(u2A < u1A/4);
-    assert(u2A > u1A/6);
+    assert(u2A < u1A / 4);
+    assert(u2A > u1A / 6);
 
     //probably 0.823 and 0.164, or 5/6 vs 1/6, or 5x difference
-    assert(u2B < u1B/4);
-    assert(u2B > u1B/6);
+    assert(u2B < u1B / 4);
+    assert(u2B > u1B / 6);
   });
 
   it('User tries to pause the pool using own pubkey', async () => {
@@ -559,25 +559,25 @@ describe('Multiuser Reward Pool', () => {
   });
 
   it('User unstakes some tokens in paused pool', async () => {
-      await users[2].unstakeTokens(250_000_000);
+    await users[2].unstakeTokens(250_000_000);
   });
 
   it('Funder unpauses the pool', async () => {
-      assert.strictEqual(10_000, await getTokenBalance(funders[0].xTokenPubkey));
-      await funders[0].unpausePool(null);
-      //assert xtoken spent
-      assert.strictEqual(0, await getTokenBalance(funders[0].xTokenPubkey));
+    assert.strictEqual(10_000, await getTokenBalance(funders[0].xTokenPubkey));
+    await funders[0].unpausePool(null);
+    //assert xtoken spent
+    assert.strictEqual(0, await getTokenBalance(funders[0].xTokenPubkey));
   });
 
   it('Funder unpauses the unpaused pool', async () => {
-      try {
-        await funders[0].unpausePool(null);
-        assert.fail("did not fail on pausing paused pool");
-      } catch (e) { }
+    try {
+      await funders[0].unpausePool(null);
+      assert.fail("did not fail on pausing paused pool");
+    } catch (e) { }
   });
 
   it('User stakes some tokens in unpaused pool', async () => {
-      await users[2].stakeTokens(250_000_000);
+    await users[2].stakeTokens(250_000_000);
   });
 
   it("Tries to close a pool with active user", async () => {
@@ -612,7 +612,7 @@ describe('Multiuser Reward Pool', () => {
     let refundInLamports = endLamports - startLamports;
     console.log("Refund when destroying a pool", (refundInLamports / 1_000_000_000));
     assert.equal(refundInLamports, EXPECTED_POOL_CREATE_COST - 15_000); //15k in tx fees during close, unclear why not 10k
-    
+
 
     let pool = await provider.connection.getAccountInfo(funders[1].admin.poolKeypair.publicKey);
     let sv = await provider.connection.getAccountInfo(funders[1].admin.stakingMintVault);
@@ -625,16 +625,16 @@ describe('Multiuser Reward Pool', () => {
     assert.strictEqual(bv, null);
   });
 
-});  
+});
 
 async function getTokenBalance(pubkey) {
   return parseFloat((await provider.connection.getTokenAccountBalance(pubkey)).value.uiAmount.toFixed(6))
 }
 
 async function wait(seconds) {
-  while(seconds > 0) {
+  while (seconds > 0) {
     console.log("countdown " + seconds--);
-    await new Promise(a=>setTimeout(a, 1000));
+    await new Promise(a => setTimeout(a, 1000));
   }
   console.log("wait over");
 }

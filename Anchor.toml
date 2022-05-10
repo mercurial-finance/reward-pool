@@ -1,7 +1,7 @@
 anchor_version = "0.24.2"
 
 [workspace]
-members = ["programs/staking"]
+members = ["programs/staking", "programs/single-farming"]
 
 [registry]
 url = "https://anchor.projectserum.com"
@@ -12,11 +12,11 @@ wallet = "~/.config/solana/id.json"
 
 [scripts]
 #test = "mocha -t 1000000 tests/dual-farming"
-#test = "mocha -t 1000000 tests/single-farming"
-test = "yarn run ts-mocha -t 1000000 tests/staking/mer_staking.ts"
+test = "mocha -t 1000000 tests/single-farming"
+# test = "yarn run ts-mocha -t 1000000 tests/staking/mer_staking.ts"
 [programs.localnet]
-mer_staking = "7G7KwxVDsHdSwUwtXbwmLca7iUkqCSKj1WiPxFAjPJVK"
-#reward_pool = "Dev9TukuTHwNmYm2NUcXQ9iuNL8UrP3TnZCj1Y7UjV18"
+# mer_staking = "7G7KwxVDsHdSwUwtXbwmLca7iUkqCSKj1WiPxFAjPJVK"
+single_farming = "Dev9TukuTHwNmYm2NUcXQ9iuNL8UrP3TnZCj1Y7UjV18"
 
 #[programs.devnet]
 #reward_pool = "Dev9TukuTHwNmYm2NUcXQ9iuNL8UrP3TnZCj1Y7UjV18"

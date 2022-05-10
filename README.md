@@ -37,7 +37,7 @@ can be deterministically generated with docker.
 When testing locally, be sure to build with feature "local-testing" to enable the testing IDs.  You can do this by editing `programs/step-staking/Cargo.toml` and uncommenting the default feature set line.
 
 ```
-anchor test
+anchor test -- --features dev
 ```
 
 ### Verify

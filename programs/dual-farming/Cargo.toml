@@ -11,6 +11,7 @@ name = "dual_farming"
 [features]
 no-entrypoint = []
 cpi = ["no-entrypoint"]
+dev = []
 
 #add to default for local testing
 #default = ["local-testing","test-id"]
