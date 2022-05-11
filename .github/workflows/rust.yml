@@ -1,40 +1,35 @@
 name: Rust
-
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
-
+    branches: [main, develop]
 env:
   CARGO_TERM_COLOR: always
-  SOLANA_CLI_VERSION: 1.9.19
-  NODE_VERSION: 16.15.0
-
 jobs:
-  setup-anchor-cli:
-    name: Setup Anchor cli
-    runs-on: ubuntu-20.04
-    timeout-minutes: 30
+  build:
+    runs-on: ubuntu-latest
+    container: projectserum/build:v0.24.2
+
     steps:
-      - uses: actions/checkout@v2
-      - uses: ./.github/actions/setup/
-      - uses: actions/setup-node@v2
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-      - uses: ./.github/actions/setup-ts/
-      - uses: ./.github/actions/git-diff/
-  test-programs:
-    runs-on: ubuntu-20.04
-    timeout-minutes: 30
-    needs: setup-anchor-cli
-    steps:
-    - uses: actions/checkout@v2
-    - name: Build
-      run: anchor-build
-    - name: Cargo test
-      run: cargo test
-    - name: Run anchor test
-      run: anchor test -- --features dev
-    - name: Cargo fmt
-      run: cargo fmt
+      - uses: actions/checkout@v3
+      - name: List rustup toolchains
+        run: rustup toolchain list
+      - name: Set default toolchain
+        run: rustup default stable
+      - name: List rustup toolchains
+        run: rustup toolchain list
+      - name: Generate new keygen
+        run: solana-keygen new
+      - name: Set solana target cluster to local
+        run: solana config set --url http:localhost:8899
+      - name: Check solana config
+        run: solana config get
+      - name: Install yarn dependencies
+        run: yarn install
+      - name: Build
+        run: anchor build
+      - name: Cargo test
+        run: cargo test
+      - name: Run tests
+        run: anchor test
