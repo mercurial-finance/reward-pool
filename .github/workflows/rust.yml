@@ -27,9 +27,9 @@ jobs:
         run: solana config get
       - name: Install yarn dependencies
         run: yarn install
-      - name: Build
-        run: anchor build
       - name: Cargo test
         run: cargo test
       - name: Run tests
-        run: anchor test
+        run: anchor test -- --features dev
+      - name: Cargo fmt
+        run: cargo fmt
