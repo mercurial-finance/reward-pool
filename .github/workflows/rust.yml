@@ -25,11 +25,14 @@ jobs:
         run: solana config set --url http:localhost:8899
       - name: Check solana config
         run: solana config get
-      - name: Install yarn dependencies
-        run: yarn install
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16.15.0
+      - name: Install node dependencies
+        run: npm install
       - name: Cargo test
         run: cargo test
-      - name: Run tests
+      - name: Anchor tests
         run: anchor test -- --features dev
       - name: Cargo fmt
         run: cargo fmt
