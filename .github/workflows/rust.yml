@@ -30,9 +30,9 @@ jobs:
           node-version: 16.15.0
       - name: Install node dependencies
         run: npm install
+      - name: Cargo fmt
+        run: cargo fmt
       - name: Cargo test
         run: cargo test
       - name: Anchor tests
         run: anchor test -- --features dev
-      - name: Cargo fmt
-        run: cargo fmt
