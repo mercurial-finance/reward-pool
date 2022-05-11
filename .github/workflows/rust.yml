@@ -22,13 +22,7 @@ jobs:
       - uses: actions/setup-node@v2
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - run: cargo install --path cli anchor-cli --locked --force
-      - run: chmod +x ~/.cargo/bin/anchor
-      - uses: actions/upload-artifact@v2
-        with:
-          name: anchor-binary-no-caching
-          path: ~/.cargo/bin/anchor
-
+      - uses: ./.github/actions/setup-ts/
       - uses: ./.github/actions/git-diff/
   test-programs:
     runs-on: ubuntu-20.04
