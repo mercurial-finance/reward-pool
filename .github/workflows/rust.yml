@@ -9,7 +9,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   SOLANA_CLI_VERSION: 1.9.19
-  NODE_VERSION: 16.15.o
+  NODE_VERSION: 16.15.0
 
 jobs:
   setup-anchor-cli:
