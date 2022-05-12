@@ -17,7 +17,7 @@ mod staking {
         vault.token_mint = ctx.accounts.token_mint.key();
         vault.token_vault = ctx.accounts.token_vault.key();
         vault.lp_mint = ctx.accounts.lp_mint.key();
-        vault.base  = *ctx.accounts.base.key;
+        vault.base = *ctx.accounts.base.key;
         vault.admin = *ctx.accounts.admin.key;
         vault.locked_reward_tracker = LockedRewardTracker::default();
         Ok(())
@@ -76,7 +76,7 @@ mod staking {
             b"vault".as_ref(),
             ctx.accounts.vault.token_mint.as_ref(),
             ctx.accounts.vault.base.as_ref(),
-            &[ctx.accounts.vault.vault_bump]
+            &[ctx.accounts.vault.vault_bump],
         ];
 
         let signer = &[&seeds[..]];
@@ -93,7 +93,7 @@ mod staking {
             mint_amount,
         )?;
 
-        emit!(EventStake{
+        emit!(EventStake {
             mint_amount,
             token_amount: amount,
         });
@@ -107,10 +107,12 @@ mod staking {
             return Err(VaultError::ZeroRewardAmount.into());
         }
         let current_time = u64::try_from(Clock::get()?.unix_timestamp)
-        .ok()
-        .ok_or(VaultError::MathOverflow)?;
+            .ok()
+            .ok_or(VaultError::MathOverflow)?;
         let vault = &mut ctx.accounts.vault;
-        vault.update_locked_reward(current_time, amount).ok_or(VaultError::MathOverflow)?;
+        vault
+            .update_locked_reward(current_time, amount)
+            .ok_or(VaultError::MathOverflow)?;
 
         // Transfer Token to vault.
         token::transfer(
@@ -148,7 +150,7 @@ mod staking {
             b"vault".as_ref(),
             ctx.accounts.vault.token_mint.as_ref(),
             ctx.accounts.vault.base.as_ref(),
-            &[ctx.accounts.vault.vault_bump]
+            &[ctx.accounts.vault.vault_bump],
         ];
         let signer = &[&seeds[..]];
 
@@ -180,7 +182,7 @@ mod staking {
             unmint_amount,
         )?;
 
-        emit!(EventUnStake{
+        emit!(EventUnStake {
             unmint_amount,
             token_amount: withdraw_amount,
         });
@@ -192,11 +194,11 @@ mod staking {
 #[derive(Accounts)]
 pub struct InitializeVault<'info> {
     #[account(
-        init,
-        seeds = [b"vault".as_ref(), token_mint.key().as_ref(), base.key().as_ref()],
-        bump,
-        payer = admin,
-        space = 500, // exceed space for buffer
+    init,
+    seeds = [b"vault".as_ref(), token_mint.key().as_ref(), base.key().as_ref()],
+    bump,
+    payer = admin,
+    space = 500, // exceed space for buffer
     )]
     pub vault: Account<'info, Vault>,
 
@@ -206,22 +208,22 @@ pub struct InitializeVault<'info> {
     pub token_mint: Account<'info, Mint>,
 
     #[account(
-        init,
-        seeds = [b"token_vault", vault.key().as_ref()],
-        bump,
-        payer = admin,
-        token::mint = token_mint,
-        token::authority = vault,
+    init,
+    seeds = [b"token_vault", vault.key().as_ref()],
+    bump,
+    payer = admin,
+    token::mint = token_mint,
+    token::authority = vault,
     )]
     pub token_vault: Account<'info, TokenAccount>,
 
     #[account(
-        init,
-        seeds = [b"lp_mint", vault.key().as_ref()],
-        bump,
-        payer = admin,
-        mint::decimals = token_mint.decimals,
-        mint::authority = vault,
+    init,
+    seeds = [b"lp_mint", vault.key().as_ref()],
+    bump,
+    payer = admin,
+    mint::decimals = token_mint.decimals,
+    mint::authority = vault,
     )]
     pub lp_mint: Account<'info, Mint>,
 
@@ -238,9 +240,9 @@ pub struct InitializeVault<'info> {
 #[derive(Accounts)]
 pub struct Stake<'info> {
     #[account(
-        mut,
-        has_one = token_vault,
-        has_one = lp_mint,
+    mut,
+    has_one = token_vault,
+    has_one = lp_mint,
     )]
     pub vault: Account<'info, Vault>,
 
@@ -265,8 +267,8 @@ pub struct Stake<'info> {
 #[derive(Accounts)]
 pub struct Reward<'info> {
     #[account(
-        mut, 
-        has_one = token_vault,
+    mut,
+    has_one = token_vault,
     )]
     pub vault: Account<'info, Vault>,
 
@@ -311,7 +313,6 @@ pub enum VaultError {
     #[msg("LockedRewardDegradation is invalid")]
     InvalidLockedRewardDegradation,
 }
-
 
 #[event]
 pub struct EventStake {
