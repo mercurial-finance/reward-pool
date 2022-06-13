@@ -1,4 +1,4 @@
-# Dual-farming CLI
+# Single-farming CLI
 ## Installation
 ### Prerequisites
 ```bash
@@ -68,10 +68,10 @@ Signature 2H1ZWjWBVLWKMKkDXH7HzJd31kLihjxnGDMGsbRADjcK36wG9KcVi17CTddLtSXXRu3A44
 
 ```
 
-### Stake
+### Deposit
 
 ```bash
-./single-farming-cli stake --wallet-path ~/.config/solana/user.json  --staking-mint 5SJETH3dj4zfZ1prQbGXFP1roBir2sU71tNZsLpZL8Je --base 6iG7xBbKbkm14yQfJjBJ6YZR6uHNbdw6eNnrCGQ8RsUF 1000
+./single-farming-cli deposit --wallet-path ~/.config/solana/user.json  --staking-mint 5SJETH3dj4zfZ1prQbGXFP1roBir2sU71tNZsLpZL8Je --base 6iG7xBbKbkm14yQfJjBJ6YZR6uHNbdw6eNnrCGQ8RsUF 1000
 
 
 Wallet EdRCHLTZR6Pcx1YDa4TgvVoxJDkCuwwvDGYSh9LNy5KK
@@ -80,10 +80,10 @@ Signature 57tnZedp4qZzsYCmss64kyqDWM8BvgexLvc5yEPZyw4gETGqbCbCQG3v3ridyKgwHnWZCN
 
 ```
 
-### Unstake
+### Withdraw
 
 ```bash
-./single-farming-cli unstake [--wallet-path <WALLET_PATH_JSON>]  --staking-mint <STAKING_MINT_PUBKEY>  amount
+./single-farming-cli withdraw [--wallet-path <WALLET_PATH_JSON>]  --staking-mint <STAKING_MINT_PUBKEY>  amount
 ```
 
 

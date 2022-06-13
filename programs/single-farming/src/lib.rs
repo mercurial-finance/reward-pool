@@ -147,14 +147,14 @@ pub mod single_farming {
         Ok(())
     }
 
-    /// A user stakes all tokens into the pool.
-    pub fn stake_full(ctx: Context<Stake>) -> Result<()> {
+    /// A user deposit all tokens into the pool.
+    pub fn deposit_full(ctx: Context<Deposit>) -> Result<()> {
         let full_amount = ctx.accounts.stake_from_account.amount;
-        stake(ctx, full_amount)
+        deposit(ctx, full_amount)
     }
 
-    /// A user stakes tokens in the pool.
-    pub fn stake(ctx: Context<Stake>, amount: u64) -> Result<()> {
+    /// A user deposit tokens in the pool.
+    pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
         if amount == 0 {
             return Err(ErrorCode::AmountMustBeGreaterThanZero.into());
         }
@@ -183,8 +183,8 @@ pub mod single_farming {
         Ok(())
     }
 
-    /// A user unstakes tokens in the pool.
-    pub fn unstake(ctx: Context<Stake>, spt_amount: u64) -> Result<()> {
+    /// A user withdraw tokens in the pool.
+    pub fn withdraw(ctx: Context<Deposit>, spt_amount: u64) -> Result<()> {
         if spt_amount == 0 {
             return Err(ErrorCode::AmountMustBeGreaterThanZero.into());
         }
@@ -193,7 +193,7 @@ pub mod single_farming {
         let total_staked = ctx.accounts.staking_vault.amount;
 
         if ctx.accounts.user.balance_staked < spt_amount {
-            return Err(ErrorCode::InsufficientFundUnstake.into());
+            return Err(ErrorCode::InsufficientFundWithdraw.into());
         }
 
         let user_opt = Some(&mut ctx.accounts.user);
@@ -203,7 +203,7 @@ pub mod single_farming {
             .user
             .balance_staked
             .checked_sub(spt_amount)
-            .ok_or(ErrorCode::CannotUnstakeMoreThanBalance)?;
+            .ok_or(ErrorCode::CannotWithdrawMoreThanBalance)?;
 
         // Transfer tokens from the pool vault to user vault.
         {
@@ -370,9 +370,9 @@ pub struct CreateUser<'info> {
     pub system_program: Program<'info, System>,
 }
 
-/// Accounts for [Stake](/single_farming/instruction/struct.Stake.html) instruction and [UnStake](/single_farming/instruction/struct.Unstake.html) instruction
+/// Accounts for [Deposit](/single_farming/instruction/struct.Deposit.html) instruction and [Withdraw](/single_farming/instruction/struct.Withdraw.html) instruction
 #[derive(Accounts)]
-pub struct Stake<'info> {
+pub struct Deposit<'info> {
     /// The farming pool PDA.
     #[account(
         mut,
@@ -464,12 +464,12 @@ pub enum ErrorCode {
     /// Start time cannot be smaller than current time
     #[msg("Start time cannot be smaller than current time")]
     InvalidStartDate,
-    /// Cannot unstake more than staked amount
-    #[msg("Cannot unstake more than staked amount")]
-    CannotUnstakeMoreThanBalance,
-    /// Insufficient funds to unstake.
-    #[msg("Insufficient funds to unstake.")]
-    InsufficientFundUnstake,
+    /// Cannot withdraw more than deposited amount
+    #[msg("Cannot withdraw more than deposited amount")]
+    CannotWithdrawMoreThanBalance,
+    /// Insufficient funds to withdraw.
+    #[msg("Insufficient funds to withdraw.")]
+    InsufficientFundWithdraw,
     /// Amount must be greater than zero.
     #[msg("Amount must be greater than zero.")]
     AmountMustBeGreaterThanZero,
