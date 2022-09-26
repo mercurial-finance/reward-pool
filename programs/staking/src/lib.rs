@@ -5,62 +5,41 @@
 #![warn(clippy::integer_arithmetic)]
 #![warn(missing_docs)]
 
-use crate::state::*;
+use crate::context::*;
+
+use crate::error::ErrorCode;
+use crate::utils::rate_by_funding;
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::{clock, sysvar};
-use anchor_spl::token::{self, Mint, Token, TokenAccount};
+use anchor_lang::solana_program::clock;
+use anchor_spl::token;
 use std::convert::Into;
 use std::convert::TryInto;
 
+/// Export for context implementation
+pub mod context;
+/// Define error code
+pub mod error;
 /// Export for pool implementation
 pub mod state;
+/// Export for utils implementation
+pub mod utils;
 
 declare_id!("9D9cdG8WV336qsjWe6PeMkqcsBmAWTZhddQgTfQrsHqc");
 
-/// Updates the pool with the total reward per token that is due stakers
-/// Using the calculator specific to that pool version which uses the reward
-/// rate on the pool.
-/// Optionally updates user with pending rewards and "complete" rewards.
-/// A new user to the pool has their completed set to current amount due
-/// such that they start earning from that point. Hence "complete" is a
-/// bit misleading - it does not mean actually earned.
-pub fn update_rewards(
-    pool: &mut Box<Account<Pool>>,
-    user: Option<&mut Box<Account<User>>>,
-    total_staked: u64,
-) -> Result<()> {
-    let last_time_reward_applicable = pool.last_time_reward_applicable();
-
-    let reward = pool
-        .reward_per_token(total_staked, last_time_reward_applicable)
-        .ok_or(ErrorCode::MathOverFlow)?;
-
-    pool.reward_per_token_stored = reward;
-    pool.last_update_time = last_time_reward_applicable;
-
-    if let Some(u) = user {
-        let amount = pool.user_earned_amount(u).ok_or(ErrorCode::MathOverFlow)?;
-
-        u.reward_per_token_pending = amount;
-        u.reward_per_token_complete = pool.reward_per_token_stored;
-    }
-
-    Ok(())
-}
-
 /// Single farming program
 #[program]
-pub mod staking {
+pub mod single_farming {
     use super::*;
 
     /// Initializes a new pool
     pub fn initialize_pool(
         ctx: Context<InitializePool>,
-        reward_duration: u64,
-        funding_amount: u64,
+        jup_reward_duration: u64,
+        jup_funding_amount: u64,
+        xmer_reward_duration: u64,
     ) -> Result<()> {
-        if reward_duration == 0 {
-            return Err(ErrorCode::DurationCannotBeZero.into());
+        if jup_reward_duration == 0 {
+            return Err(ErrorCode::JupDurationCannotBeZero.into());
         }
 
         let pool = &mut ctx.accounts.pool;
@@ -68,22 +47,30 @@ pub mod staking {
         pool.staking_vault_nonce = *ctx.bumps.get("staking_vault").unwrap();
         pool.staking_mint = ctx.accounts.staking_mint.key();
         pool.staking_vault = ctx.accounts.staking_vault.key();
-        pool.reward_mint = ctx.accounts.reward_mint.key();
-        pool.reward_vault = ctx.accounts.reward_vault.key();
-        pool.reward_duration = reward_duration;
+
+        // update jup  info
+        pool.jup_reward_duration = jup_reward_duration;
         pool.total_staked = 0;
-        pool.last_update_time = 0;
-        pool.reward_end_timestamp = 0;
+        pool.jup_last_update_time = 0;
+        pool.jup_reward_end_timestamp = 0;
         pool.admin = ctx.accounts.admin.key();
-        pool.reward_rate =
-            rate_by_funding(funding_amount, reward_duration).ok_or(ErrorCode::MathOverFlow)?;
-        pool.reward_per_token_stored = 0;
+        pool.jup_reward_rate = rate_by_funding(jup_funding_amount, jup_reward_duration)
+            .ok_or(ErrorCode::MathOverFlow)?;
+        pool.jup_reward_per_token_stored = 0;
+
+        // update xmer info
+        pool.xmer_reward_duration = xmer_reward_duration;
+        pool.xmer_reward_mint = ctx.accounts.xmer_reward_mint.key();
+        pool.xmer_reward_vault = ctx.accounts.xmer_reward_vault.key();
+        pool.xmer_last_update_time = 0;
+        pool.xmer_reward_end_timestamp = 0;
+        pool.xmer_reward_per_token_stored = 0;
         Ok(())
     }
 
-    /// Admin activates farming
-    pub fn activate_farming<'a, 'b, 'c, 'info>(
-        ctx: Context<'a, 'b, 'c, 'info, ActivateFarming<'info>>,
+    /// Admin activates jup farming
+    pub fn activate_jup_farming<'a, 'b, 'c, 'info>(
+        ctx: Context<'a, 'b, 'c, 'info, ActivateJupFarming<'info>>,
     ) -> Result<()> {
         let pool = &mut ctx.accounts.pool;
         let current_time = clock::Clock::get()
@@ -91,10 +78,84 @@ pub mod staking {
             .unix_timestamp
             .try_into()
             .unwrap();
-        pool.last_update_time = current_time;
-        pool.reward_end_timestamp = current_time
-            .checked_add(pool.reward_duration)
+        pool.jup_last_update_time = current_time;
+        pool.jup_reward_end_timestamp = current_time
+            .checked_add(pool.jup_reward_duration)
             .ok_or(ErrorCode::MathOverFlow)?;
+        Ok(())
+    }
+
+    /// Authorize additional funders for the pool
+    pub fn authorize_funder(ctx: Context<FunderChange>, funder_to_add: Pubkey) -> Result<()> {
+        if funder_to_add == ctx.accounts.pool.admin.key() {
+            return Err(ErrorCode::FunderAlreadyAuthorized.into());
+        }
+        let funders = &mut ctx.accounts.pool.funders;
+        if funders.iter().any(|x| *x == funder_to_add) {
+            return Err(ErrorCode::FunderAlreadyAuthorized.into());
+        }
+        let default_pubkey = Pubkey::default();
+        if let Some(idx) = funders.iter().position(|x| *x == default_pubkey) {
+            funders[idx] = funder_to_add;
+            emit!(EventAuthorizeFunder {
+                new_funder: funder_to_add
+            });
+        } else {
+            return Err(ErrorCode::MaxFunders.into());
+        }
+        Ok(())
+    }
+
+    /// Deauthorize funders for the pool
+    pub fn deauthorize_funder(ctx: Context<FunderChange>, funder_to_remove: Pubkey) -> Result<()> {
+        if funder_to_remove == ctx.accounts.pool.admin.key() {
+            return Err(ErrorCode::CannotDeauthorizePoolAdmin.into());
+        }
+        let funders = &mut ctx.accounts.pool.funders;
+        if let Some(idx) = funders.iter().position(|x| *x == funder_to_remove) {
+            funders[idx] = Pubkey::default();
+            emit!(EventUnauthorizeFunder {
+                funder: funder_to_remove
+            });
+        } else {
+            return Err(ErrorCode::CannotDeauthorizeMissingAuthority.into());
+        }
+        Ok(())
+    }
+
+    /// Fund the pool with xMER rewards.  This resets the clock on the end date, pushing it out to the set duration. And, linearly redistributes remaining rewards.
+    pub fn fund_xmer(ctx: Context<FundXMer>, amount: u64) -> Result<()> {
+        let pool = &mut ctx.accounts.pool;
+
+        pool.update_xmer_rewards(None).unwrap();
+
+        let xmer_reward_rate = pool.xmer_rate_after_funding(amount)?;
+        pool.xmer_reward_rate = xmer_reward_rate;
+
+        // Transfer reward A tokens into the A vault.
+        if amount > 0 {
+            let cpi_ctx = CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                token::Transfer {
+                    from: ctx.accounts.from_xmer.to_account_info(),
+                    to: ctx.accounts.xmer_reward_vault.to_account_info(),
+                    authority: ctx.accounts.funder.to_account_info(),
+                },
+            );
+
+            token::transfer(cpi_ctx, amount)?;
+        }
+
+        let current_time = clock::Clock::get()
+            .unwrap()
+            .unix_timestamp
+            .try_into()
+            .unwrap();
+        pool.xmer_last_update_time = current_time;
+        pool.xmer_reward_end_timestamp =
+            current_time.checked_add(pool.xmer_reward_duration).unwrap();
+
+        emit!(EventFund { amount });
         Ok(())
     }
 
@@ -105,8 +166,10 @@ pub mod staking {
         let user = &mut ctx.accounts.user;
         user.pool = *ctx.accounts.pool.to_account_info().key;
         user.owner = *ctx.accounts.owner.key;
-        user.reward_per_token_complete = 0;
-        user.reward_per_token_pending = 0;
+        user.jup_reward_per_token_complete = 0;
+        user.jup_reward_per_token_pending = 0;
+        user.xmer_reward_per_token_complete = 0;
+        user.xmer_reward_per_token_pending = 0;
         user.balance_staked = 0;
         user.nonce = *ctx.bumps.get("user").unwrap();
         Ok(())
@@ -124,8 +187,12 @@ pub mod staking {
             return Err(ErrorCode::AmountMustBeGreaterThanZero.into());
         }
         let pool = &mut ctx.accounts.pool;
-        let user_opt = Some(&mut ctx.accounts.user);
-        update_rewards(pool, user_opt, pool.total_staked)?;
+        let user_opt = &mut ctx.accounts.user;
+
+        // update rewards for both jup and xMER
+        pool.update_jup_rewards(user_opt)?;
+        pool.update_xmer_rewards(Some(user_opt))?;
+
         ctx.accounts.user.balance_staked = ctx
             .accounts
             .user
@@ -164,8 +231,9 @@ pub mod staking {
             return Err(ErrorCode::InsufficientFundUnstake.into());
         }
 
-        let user_opt = Some(&mut ctx.accounts.user);
-        update_rewards(pool, user_opt, pool.total_staked)?;
+        let user_opt = &mut ctx.accounts.user;
+        pool.update_jup_rewards(user_opt)?;
+        pool.update_xmer_rewards(Some(user_opt))?;
         ctx.accounts.user.balance_staked = ctx
             .accounts
             .user
@@ -236,11 +304,12 @@ pub mod staking {
         Ok(())
     }
 
-    /// A user claiming rewards
-    pub fn claim(ctx: Context<ClaimReward>) -> Result<()> {
+    /// A user claiming xmer
+    pub fn claim_xmer(ctx: Context<ClaimXMerReward>) -> Result<()> {
         let pool = &mut ctx.accounts.pool;
-        let user_opt = Some(&mut ctx.accounts.user);
-        update_rewards(pool, user_opt, pool.total_staked)?;
+        let user_opt = &mut ctx.accounts.user;
+        pool.update_jup_rewards(user_opt)?;
+        pool.update_xmer_rewards(Some(user_opt))?;
 
         let pool_key = pool.key();
         let seeds = &[
@@ -252,27 +321,26 @@ pub mod staking {
 
         // emit pending reward
         emit!(EventPendingReward {
-            value: ctx.accounts.user.reward_per_token_pending,
+            value: ctx.accounts.user.xmer_reward_per_token_pending,
         });
-        if ctx.accounts.user.reward_per_token_pending > 0 {
-            let reward_per_token_pending = ctx.accounts.user.reward_per_token_pending;
-            let vault_balance = ctx.accounts.reward_vault.amount;
+        if ctx.accounts.user.xmer_reward_per_token_pending > 0 {
+            let xmer_reward_per_token_pending = ctx.accounts.user.xmer_reward_per_token_pending;
+            let vault_balance = ctx.accounts.xmer_reward_vault.amount;
 
-            let reward_amount = if vault_balance < reward_per_token_pending {
+            // probably precision loss issue, so we send user max balance the vault has
+            let reward_amount = if vault_balance < xmer_reward_per_token_pending {
                 vault_balance
             } else {
-                reward_per_token_pending
+                xmer_reward_per_token_pending
             };
             if reward_amount > 0 {
-                ctx.accounts.user.reward_per_token_pending = reward_per_token_pending
-                    .checked_sub(reward_amount)
-                    .ok_or(ErrorCode::MathOverFlow)?;
+                ctx.accounts.user.xmer_reward_per_token_pending = 0;
 
                 let cpi_ctx = CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
                     token::Transfer {
-                        from: ctx.accounts.reward_vault.to_account_info(),
-                        to: ctx.accounts.reward_account.to_account_info(),
+                        from: ctx.accounts.xmer_reward_vault.to_account_info(),
+                        to: ctx.accounts.xmer_reward_account.to_account_info(),
                         authority: ctx.accounts.staking_vault.to_account_info(),
                     },
                     pool_signer,
@@ -294,225 +362,6 @@ pub mod staking {
     }
 }
 
-/// Accounts for [InitializePool](/single_farming/instruction/struct.InitializePool.html) instruction
-#[derive(Accounts)]
-pub struct InitializePool<'info> {
-    /// The farming pool PDA.
-    #[account(
-        init,
-        payer = admin,
-        space = 250 // 1 + 177 + buffer
-    )]
-    pub pool: Box<Account<'info, Pool>>,
-
-    /// The staking vault PDA.
-    #[account(
-        init,
-        seeds = [b"staking_vault".as_ref(), pool.key().as_ref()],
-        bump,
-        payer = admin,
-        token::mint = staking_mint,
-        token::authority = staking_vault,
-    )]
-    pub staking_vault: Box<Account<'info, TokenAccount>>,
-    /// The staking Mint.
-    pub staking_mint: Box<Account<'info, Mint>>,
-    /// The reward Mint.
-    pub reward_mint: Box<Account<'info, Mint>>,
-    /// The reward Vault PDA.
-    #[account(
-        init,
-        seeds = [b"reward_vault".as_ref(), pool.key().as_ref()],
-        bump,
-        payer = admin,
-        token::mint = reward_mint,
-        token::authority = staking_vault,
-    )]
-    pub reward_vault: Box<Account<'info, TokenAccount>>,
-
-    /// The authority of the pool   
-    #[account(mut)]
-    pub admin: Signer<'info>,
-
-    /// Token Program
-    pub token_program: Program<'info, Token>,
-    /// Rent
-    pub rent: Sysvar<'info, Rent>,
-    /// System program
-    pub system_program: Program<'info, System>,
-}
-
-/// Accounts for [ActivateFarming](/single_farming/instruction/struct.ActivateFarming.html) instruction
-#[derive(Accounts)]
-pub struct ActivateFarming<'info> {
-    #[account(
-        mut,
-        has_one = admin,
-    )]
-    /// The farming pool PDA.
-    pub pool: Box<Account<'info, Pool>>,
-    /// The admin of the pool
-    pub admin: Signer<'info>,
-}
-
-/// Accounts for [CreateUser](/single_farming/instruction/struct.CreateUser.html) instruction
-#[derive(Accounts)]
-pub struct CreateUser<'info> {
-    /// The farming pool PDA.
-    pub pool: Box<Account<'info, Pool>>,
-    /// User staking PDA.
-    #[account(
-        init,
-        payer = owner,
-        seeds = [
-            owner.key.as_ref(),
-            pool.key().as_ref()
-        ],
-        bump,
-        space = 120 // 1 + 97 + buffer
-    )]
-    pub user: Box<Account<'info, User>>,
-    /// The authority of user
-    #[account(mut)]
-    pub owner: Signer<'info>,
-    /// System Program
-    pub system_program: Program<'info, System>,
-}
-
-/// Accounts for [Deposit](/single_farming/instruction/struct.Deposit.html) instruction and [Withdraw](/single_farming/instruction/struct.Withdraw.html) instruction
-#[derive(Accounts)]
-pub struct DepositOrWithdraw<'info> {
-    /// The farming pool PDA.
-    #[account(
-        mut,
-        has_one = staking_vault,
-    )]
-    pub pool: Box<Account<'info, Pool>>,
-    /// The staking vault PDA.
-    #[account(mut)]
-    pub staking_vault: Box<Account<'info, TokenAccount>>,
-
-    /// User staking PDA.
-    #[account(
-        mut,
-        has_one = owner,
-        has_one = pool,
-    )]
-    pub user: Box<Account<'info, User>>,
-    /// The authority of user
-    pub owner: Signer<'info>,
-    /// The user ATA
-    #[account(mut)]
-    pub stake_from_account: Box<Account<'info, TokenAccount>>,
-
-    /// Token program
-    pub token_program: Program<'info, Token>,
-}
-
-/// Accounts for [Claim](/single_farming/instruction/struct.Claim.html) instruction
-#[derive(Accounts)]
-pub struct ClaimReward<'info> {
-    /// The farming pool PDA.
-    #[account(
-        mut,
-        has_one = staking_vault,
-        has_one = reward_vault,
-    )]
-    pub pool: Box<Account<'info, Pool>>,
-    /// The staking vault PDA.
-    pub staking_vault: Box<Account<'info, TokenAccount>>,
-    /// Vault of the pool, which store the reward to be distributed
-    #[account(mut)]
-    pub reward_vault: Box<Account<'info, TokenAccount>>,
-
-    /// User staking PDA.
-    #[account(
-        mut,
-        has_one = owner,
-        has_one = pool,
-    )]
-    pub user: Box<Account<'info, User>>,
-    /// The authority of user
-    pub owner: Signer<'info>,
-    /// User token account to receive farming reward
-    #[account(mut)]
-    pub reward_account: Box<Account<'info, TokenAccount>>,
-
-    /// Token program
-    pub token_program: Program<'info, Token>,
-}
-
-/// Accounts for [CloseUser](/single_farming/instruction/struct.CloseUser.html) instruction
-#[derive(Accounts)]
-pub struct CloseUser<'info> {
-    /// The farming pool PDA.
-    pub pool: Box<Account<'info, Pool>>,
-    #[account(
-        mut,
-        close = owner,
-        has_one = owner,
-        has_one = pool,
-        constraint = user.balance_staked == 0,
-        constraint = user.reward_per_token_pending == 0,
-    )]
-    /// User account to be close
-    pub user: Account<'info, User>,
-    /// Owner of the user account
-    pub owner: Signer<'info>,
-}
-
-/// Accounts for [WithdrawExtraToken](/single_farming/instruction/struct.WithdrawExtraToken.html) instruction
-#[derive(Accounts)]
-pub struct WithdrawExtraToken<'info> {
-    /// Global accounts for the staking instance.
-    #[account(
-        has_one = staking_vault,
-        has_one = admin,
-        constraint = pool.reward_end_timestamp < sysvar::clock::Clock::get().unwrap().unix_timestamp.try_into().unwrap(),
-    )]
-    pool: Box<Account<'info, Pool>>,
-    /// Staking vault PDA
-    #[account(mut)]
-    staking_vault: Box<Account<'info, TokenAccount>>,
-    /// Token account to receive mistakenly deposited token
-    #[account(mut)]
-    withdraw_to_account: Box<Account<'info, TokenAccount>>,
-
-    /// Admin of the staking instance
-    admin: Signer<'info>,
-    /// Misc.
-    token_program: Program<'info, Token>,
-}
-
-/// Contains error code from the program
-#[error_code]
-pub enum ErrorCode {
-    /// Staking mint is wrong
-    #[msg("Staking mint is wrong")]
-    WrongStakingMint,
-    /// Create pool with wrong admin
-    #[msg("Create pool with wrong admin")]
-    InvalidAdminWhenCreatingPool,
-    /// Start time cannot be smaller than current time
-    #[msg("Start time cannot be smaller than current time")]
-    InvalidStartDate,
-    /// Cannot unstake more than staked amount
-    #[msg("Cannot unstake more than staked amount")]
-    CannotUnstakeMoreThanBalance,
-    /// Insufficient funds to unstake.
-    #[msg("Insufficient funds to unstake.")]
-    InsufficientFundUnstake,
-    /// Amount must be greater than zero.
-    #[msg("Amount must be greater than zero.")]
-    AmountMustBeGreaterThanZero,
-    /// Duration cannot be shorter than one day.
-    #[msg("Duration cannot be zero")]
-    DurationCannotBeZero,
-    /// MathOverFlow
-    #[msg("MathOverFlow")]
-    MathOverFlow,
-}
-
 /// EventPendingReward
 #[event]
 pub struct EventPendingReward {
@@ -525,4 +374,22 @@ pub struct EventPendingReward {
 pub struct EventClaimReward {
     /// Claim reward amount
     pub value: u64,
+}
+
+/// Authorized funder event
+#[event]
+pub struct EventAuthorizeFunder {
+    new_funder: Pubkey,
+}
+
+/// Un-authorized funder event
+#[event]
+pub struct EventUnauthorizeFunder {
+    funder: Pubkey,
+}
+
+/// Fund event
+#[event]
+pub struct EventFund {
+    amount: u64,
 }

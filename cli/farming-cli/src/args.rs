@@ -8,7 +8,7 @@ pub struct ConfigOverride {
     ///
     /// Values = Mainnet, Testnet, Devnet, Localnet.
     /// Default: Devnet
-    #[clap(global = true, short, long, default_value_t = Cluster::Devnet)]
+    #[clap(global = true, short, long, default_value_t = Cluster::Mainnet)]
     pub cluster: Cluster,
     /// Wallet override
     ///
