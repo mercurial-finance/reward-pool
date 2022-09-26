@@ -7,7 +7,7 @@ import {
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 
-const program = anchor.workspace.SingleFarming;
+const program = anchor.workspace.Staking;
 
 type PublicKey = anchor.web3.PublicKey;
 type Keypair = anchor.web3.Keypair;
@@ -135,7 +135,6 @@ export async function getOrCreateAssociatedTokenAccount(
 }
 
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
 
 export function computeStakingVaultAccount(pool) {
   return anchor.web3.PublicKey.findProgramAddress(

@@ -13,6 +13,6 @@ anchor-lang = "0.24.2"
 anchor-spl = {version = "0.24.2"}
 anchor-client = "0.24.2"
 anyhow = "1.0.57"
-solana-program = "1.9.9"
+solana-program = "1.9.17"
 spl-token = { version = "3.1.1", features = ["no-entrypoint"] }
 spl-associated-token-account = { version = "1.0.3", features = ["no-entrypoint"] }
