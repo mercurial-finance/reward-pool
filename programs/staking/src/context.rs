@@ -153,9 +153,7 @@ pub struct FundJup<'info> {
     #[account(
         mut,
         has_one = staking_vault,
-        has_one = jup_reward_vault,
-        constraint = pool.jup_reward_end_timestamp != 0,
-        constraint = pool.jup_reward_end_timestamp < sysvar::clock::Clock::get().unwrap().unix_timestamp.try_into().unwrap(), // user can only claim jup if farming is over
+        has_one = jup_reward_vault,        
         constraint = pool.is_jup_info_enable != 0
     )]
     pub pool: Box<Account<'info, Pool>>,
@@ -272,9 +270,7 @@ pub struct ClaimJupReward<'info> {
     #[account(
         mut,
         has_one = staking_vault,
-        has_one = jup_reward_vault,
-        constraint = pool.jup_reward_end_timestamp != 0,
-        constraint = pool.jup_reward_end_timestamp < sysvar::clock::Clock::get().unwrap().unix_timestamp.try_into().unwrap(), // user can only claim jup if farming is over
+        has_one = jup_reward_vault,        
         constraint = pool.is_jup_info_enable != 0
     )]
     pub pool: Box<Account<'info, Pool>>,
@@ -312,8 +308,9 @@ pub struct CloseUser<'info> {
         has_one = owner,
         has_one = pool,
         constraint = user.balance_staked == 0,
-        constraint = user.jup_reward_pending == 0,
+        constraint = user.jup_reward_pending == user.jup_reward_havested,
         constraint = user.xmer_reward_pending == 0,
+        constraint = pool.is_jup_info_enable != 0
     )]
     /// User account to be close
     pub user: Account<'info, User>,
