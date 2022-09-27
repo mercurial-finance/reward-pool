@@ -85,6 +85,18 @@ pub mod single_farming {
         Ok(())
     }
 
+    /// Admin set jup information, that will be done after TGE
+    pub fn set_jup_information<'a, 'b, 'c, 'info>(
+        ctx: Context<'a, 'b, 'c, 'info, SetJupInformation<'info>>,
+    ) -> Result<()> {
+        let pool = &mut ctx.accounts.pool;
+        pool.jup_reward_mint = ctx.accounts.jup_reward_mint.key();
+        pool.jup_reward_vault = ctx.accounts.jup_reward_vault.key();
+        // enable jup information
+        pool.is_jup_info_enable = 1; // any number without zero
+        Ok(())
+    }
+
     /// Authorize additional funders for the pool
     pub fn authorize_funder(ctx: Context<FunderChange>, funder_to_add: Pubkey) -> Result<()> {
         if funder_to_add == ctx.accounts.pool.admin.key() {
@@ -155,7 +167,33 @@ pub mod single_farming {
         pool.xmer_reward_end_timestamp =
             current_time.checked_add(pool.xmer_reward_duration).unwrap();
 
-        emit!(EventFund { amount });
+        emit!(EventFundXMer { amount });
+        Ok(())
+    }
+
+    /// Fund the pool with JUP rewards.
+    pub fn fund_jup(ctx: Context<FundJup>, amount: u64) -> Result<()> {
+        let pool = &mut ctx.accounts.pool;
+        let actual_amount = pool.fund_jup(amount).ok_or(ErrorCode::MathOverFlow)?;
+
+        if actual_amount > 0 {
+            let cpi_ctx = CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                token::Transfer {
+                    from: ctx.accounts.from_jup.to_account_info(),
+                    to: ctx.accounts.jup_reward_vault.to_account_info(),
+                    authority: ctx.accounts.funder.to_account_info(),
+                },
+            );
+
+            token::transfer(cpi_ctx, actual_amount)?;
+            emit!(EventFundJup {
+                amount: actual_amount
+            });
+        } else {
+            return Err(ErrorCode::JupIsFullyFunded.into());
+        }
+
         Ok(())
     }
 
@@ -167,9 +205,9 @@ pub mod single_farming {
         user.pool = *ctx.accounts.pool.to_account_info().key;
         user.owner = *ctx.accounts.owner.key;
         user.jup_reward_per_token_complete = 0;
-        user.jup_reward_per_token_pending = 0;
+        user.jup_reward_pending = 0;
         user.xmer_reward_per_token_complete = 0;
-        user.xmer_reward_per_token_pending = 0;
+        user.xmer_reward_pending = 0;
         user.balance_staked = 0;
         user.nonce = *ctx.bumps.get("user").unwrap();
         Ok(())
@@ -187,11 +225,11 @@ pub mod single_farming {
             return Err(ErrorCode::AmountMustBeGreaterThanZero.into());
         }
         let pool = &mut ctx.accounts.pool;
-        let user_opt = &mut ctx.accounts.user;
+        let user = &mut ctx.accounts.user;
 
         // update rewards for both jup and xMER
-        pool.update_jup_rewards(user_opt)?;
-        pool.update_xmer_rewards(Some(user_opt))?;
+        pool.update_jup_rewards(user)?;
+        pool.update_xmer_rewards(Some(user))?;
 
         ctx.accounts.user.balance_staked = ctx
             .accounts
@@ -231,9 +269,9 @@ pub mod single_farming {
             return Err(ErrorCode::InsufficientFundUnstake.into());
         }
 
-        let user_opt = &mut ctx.accounts.user;
-        pool.update_jup_rewards(user_opt)?;
-        pool.update_xmer_rewards(Some(user_opt))?;
+        let user = &mut ctx.accounts.user;
+        pool.update_jup_rewards(user)?;
+        pool.update_xmer_rewards(Some(user))?;
         ctx.accounts.user.balance_staked = ctx
             .accounts
             .user
@@ -271,45 +309,12 @@ pub mod single_farming {
         Ok(())
     }
 
-    /// Withdraw token that mistakenly deposited to staking_vault
-    pub fn withdraw_extra_token(ctx: Context<WithdrawExtraToken>) -> Result<()> {
-        let pool = &ctx.accounts.pool;
-        let total_amount = ctx.accounts.staking_vault.amount;
-        let total_staked = pool.total_staked;
-        let withdrawable_amount = total_amount
-            .checked_sub(total_staked)
-            .ok_or(ErrorCode::MathOverFlow)?;
-
-        if withdrawable_amount > 0 {
-            let pool_pubkey = pool.key();
-            let seeds = &[
-                b"staking_vault".as_ref(),
-                pool_pubkey.as_ref(),
-                &[pool.staking_vault_nonce],
-            ];
-            let pool_signer = &[&seeds[..]];
-            let cpi_ctx = CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                token::Transfer {
-                    from: ctx.accounts.staking_vault.to_account_info(),
-                    to: ctx.accounts.withdraw_to_account.to_account_info(),
-                    authority: ctx.accounts.staking_vault.to_account_info(),
-                },
-                pool_signer,
-            );
-
-            token::transfer(cpi_ctx, withdrawable_amount)?;
-        }
-
-        Ok(())
-    }
-
     /// A user claiming xmer
     pub fn claim_xmer(ctx: Context<ClaimXMerReward>) -> Result<()> {
         let pool = &mut ctx.accounts.pool;
-        let user_opt = &mut ctx.accounts.user;
-        pool.update_jup_rewards(user_opt)?;
-        pool.update_xmer_rewards(Some(user_opt))?;
+        let user = &mut ctx.accounts.user;
+        pool.update_jup_rewards(user)?;
+        pool.update_xmer_rewards(Some(user))?;
 
         let pool_key = pool.key();
         let seeds = &[
@@ -320,21 +325,21 @@ pub mod single_farming {
         let pool_signer = &[&seeds[..]];
 
         // emit pending reward
-        emit!(EventPendingReward {
-            value: ctx.accounts.user.xmer_reward_per_token_pending,
+        emit!(EventPendingXMerReward {
+            value: ctx.accounts.user.xmer_reward_pending,
         });
-        if ctx.accounts.user.xmer_reward_per_token_pending > 0 {
-            let xmer_reward_per_token_pending = ctx.accounts.user.xmer_reward_per_token_pending;
+        if ctx.accounts.user.xmer_reward_pending > 0 {
+            let xmer_reward_pending = ctx.accounts.user.xmer_reward_pending;
             let vault_balance = ctx.accounts.xmer_reward_vault.amount;
 
             // probably precision loss issue, so we send user max balance the vault has
-            let reward_amount = if vault_balance < xmer_reward_per_token_pending {
+            let reward_amount = if vault_balance < xmer_reward_pending {
                 vault_balance
             } else {
-                xmer_reward_per_token_pending
+                xmer_reward_pending
             };
             if reward_amount > 0 {
-                ctx.accounts.user.xmer_reward_per_token_pending = 0;
+                ctx.accounts.user.xmer_reward_pending = 0;
 
                 let cpi_ctx = CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
@@ -346,10 +351,58 @@ pub mod single_farming {
                     pool_signer,
                 );
                 token::transfer(cpi_ctx, reward_amount)?;
-                emit!(EventClaimReward {
+                emit!(EventClaimXMerReward {
                     value: reward_amount,
                 });
             }
+        }
+        Ok(())
+    }
+
+    /// A user claiming xmer
+    pub fn claim_jup(ctx: Context<ClaimXMerReward>) -> Result<()> {
+        let pool = &mut ctx.accounts.pool;
+        let user = &mut ctx.accounts.user;
+        pool.update_jup_rewards(user)?;
+        // pool.update_xmer_rewards(Some(user_opt))?;
+
+        let claimed_jup = pool
+            .calculate_claimable_jup_for_an_user(user.jup_reward_pending, user.jup_reward_havested)
+            .ok_or(ErrorCode::MathOverFlow)?;
+
+        let pool_key = pool.key();
+        let seeds = &[
+            b"staking_vault".as_ref(),
+            pool_key.as_ref(),
+            &[pool.staking_vault_nonce],
+        ];
+        let pool_signer = &[&seeds[..]];
+
+        // emit pending reward
+        emit!(EventPendingJupReward { value: claimed_jup });
+        if claimed_jup > 0 {
+            // update jup reward pending and havested
+            user.jup_reward_pending = user
+                .jup_reward_pending
+                .checked_sub(claimed_jup)
+                .ok_or(ErrorCode::MathOverFlow)?;
+
+            ctx.accounts.user.jup_reward_havested = user
+                .jup_reward_havested
+                .checked_add(claimed_jup)
+                .ok_or(ErrorCode::MathOverFlow)?;
+
+            let cpi_ctx = CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                token::Transfer {
+                    from: ctx.accounts.xmer_reward_vault.to_account_info(),
+                    to: ctx.accounts.xmer_reward_account.to_account_info(),
+                    authority: ctx.accounts.staking_vault.to_account_info(),
+                },
+                pool_signer,
+            );
+            token::transfer(cpi_ctx, claimed_jup)?;
+            emit!(EventClaimJupReward { value: claimed_jup });
         }
 
         Ok(())
@@ -364,14 +417,28 @@ pub mod single_farming {
 
 /// EventPendingReward
 #[event]
-pub struct EventPendingReward {
-    /// Pending reward amount
+pub struct EventPendingXMerReward {
+    /// Pending xMer reward amount
     pub value: u64,
 }
 
-/// EventClaimReward
+/// EventPendingReward
 #[event]
-pub struct EventClaimReward {
+pub struct EventPendingJupReward {
+    /// Pending Jup reward amount
+    pub value: u64,
+}
+
+/// EventClaimXMerReward
+#[event]
+pub struct EventClaimXMerReward {
+    /// Claim reward amount
+    pub value: u64,
+}
+
+/// EventClaimJupReward
+#[event]
+pub struct EventClaimJupReward {
     /// Claim reward amount
     pub value: u64,
 }
@@ -388,8 +455,14 @@ pub struct EventUnauthorizeFunder {
     funder: Pubkey,
 }
 
-/// Fund event
+/// XMer Fund event
 #[event]
-pub struct EventFund {
+pub struct EventFundXMer {
+    amount: u64,
+}
+
+/// Jup Fund event
+#[event]
+pub struct EventFundJup {
     amount: u64,
 }

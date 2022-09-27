@@ -39,4 +39,7 @@ pub enum ErrorCode {
     /// Authority not found for deauthorization.
     #[msg("Authority not found for deauthorization.")]
     CannotDeauthorizeMissingAuthority,
+    /// Provided funder is already authorized to fund.
+    #[msg("JUP is already fully funded.")]
+    JupIsFullyFunded,
 }
