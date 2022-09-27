@@ -364,9 +364,8 @@ pub mod single_farming {
         let pool = &mut ctx.accounts.pool;
         let user = &mut ctx.accounts.user;
         pool.update_jup_rewards(user)?;
-        // pool.update_xmer_rewards(Some(user_opt))?;
 
-        let claimed_jup = pool
+        let claimable_amount = pool
             .calculate_claimable_jup_for_an_user(user.jup_reward_pending, user.jup_reward_havested)
             .ok_or(ErrorCode::MathOverFlow)?;
 
@@ -379,17 +378,20 @@ pub mod single_farming {
         let pool_signer = &[&seeds[..]];
 
         // emit pending reward
-        emit!(EventPendingJupReward { value: claimed_jup });
-        if claimed_jup > 0 {
+        emit!(EventPendingJupReward {
+            pending_amount: user.jup_reward_pending,
+            claimable_amount: claimable_amount,
+        });
+        if claimable_amount > 0 {
             // update jup reward pending and havested
             user.jup_reward_pending = user
                 .jup_reward_pending
-                .checked_sub(claimed_jup)
+                .checked_sub(claimable_amount)
                 .ok_or(ErrorCode::MathOverFlow)?;
 
             ctx.accounts.user.jup_reward_havested = user
                 .jup_reward_havested
-                .checked_add(claimed_jup)
+                .checked_add(claimable_amount)
                 .ok_or(ErrorCode::MathOverFlow)?;
 
             let cpi_ctx = CpiContext::new_with_signer(
@@ -401,8 +403,10 @@ pub mod single_farming {
                 },
                 pool_signer,
             );
-            token::transfer(cpi_ctx, claimed_jup)?;
-            emit!(EventClaimJupReward { value: claimed_jup });
+            token::transfer(cpi_ctx, claimable_amount)?;
+            emit!(EventClaimJupReward {
+                value: claimable_amount
+            });
         }
 
         Ok(())
@@ -426,7 +430,8 @@ pub struct EventPendingXMerReward {
 #[event]
 pub struct EventPendingJupReward {
     /// Pending Jup reward amount
-    pub value: u64,
+    pub claimable_amount: u64,
+    pub pending_amount: u64,
 }
 
 /// EventClaimXMerReward
