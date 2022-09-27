@@ -174,6 +174,7 @@ pub mod single_farming {
     /// Fund the pool with JUP rewards.
     pub fn fund_jup(ctx: Context<FundJup>, amount: u64) -> Result<()> {
         let pool = &mut ctx.accounts.pool;
+        // only fund amount that we need to fund
         let actual_amount = pool.fund_jup(amount).ok_or(ErrorCode::MathOverFlow)?;
 
         if actual_amount > 0 {
@@ -316,14 +317,6 @@ pub mod single_farming {
         pool.update_jup_rewards(user)?;
         pool.update_xmer_rewards(Some(user))?;
 
-        let pool_key = pool.key();
-        let seeds = &[
-            b"staking_vault".as_ref(),
-            pool_key.as_ref(),
-            &[pool.staking_vault_nonce],
-        ];
-        let pool_signer = &[&seeds[..]];
-
         // emit pending reward
         emit!(EventPendingXMerReward {
             value: ctx.accounts.user.xmer_reward_pending,
@@ -339,8 +332,16 @@ pub mod single_farming {
                 xmer_reward_pending
             };
             if reward_amount > 0 {
+                // update xmer reward pending
                 ctx.accounts.user.xmer_reward_pending = 0;
 
+                let pool_key = pool.key();
+                let seeds = &[
+                    b"staking_vault".as_ref(),
+                    pool_key.as_ref(),
+                    &[pool.staking_vault_nonce],
+                ];
+                let pool_signer = &[&seeds[..]];
                 let cpi_ctx = CpiContext::new_with_signer(
                     ctx.accounts.token_program.to_account_info(),
                     token::Transfer {
@@ -369,31 +370,25 @@ pub mod single_farming {
             .calculate_claimable_jup_for_an_user(user.jup_reward_pending, user.jup_reward_havested)
             .ok_or(ErrorCode::MathOverFlow)?;
 
-        let pool_key = pool.key();
-        let seeds = &[
-            b"staking_vault".as_ref(),
-            pool_key.as_ref(),
-            &[pool.staking_vault_nonce],
-        ];
-        let pool_signer = &[&seeds[..]];
-
         // emit pending reward
         emit!(EventPendingJupReward {
             pending_amount: user.jup_reward_pending,
             claimable_amount: claimable_amount,
         });
         if claimable_amount > 0 {
-            // update jup reward pending and havested
-            user.jup_reward_pending = user
-                .jup_reward_pending
-                .checked_sub(claimable_amount)
-                .ok_or(ErrorCode::MathOverFlow)?;
-
+            // update jup reward havested
             ctx.accounts.user.jup_reward_havested = user
                 .jup_reward_havested
                 .checked_add(claimable_amount)
                 .ok_or(ErrorCode::MathOverFlow)?;
 
+            let pool_key = pool.key();
+            let seeds = &[
+                b"staking_vault".as_ref(),
+                pool_key.as_ref(),
+                &[pool.staking_vault_nonce],
+            ];
+            let pool_signer = &[&seeds[..]];
             let cpi_ctx = CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
                 token::Transfer {
@@ -404,9 +399,6 @@ pub mod single_farming {
                 pool_signer,
             );
             token::transfer(cpi_ctx, claimable_amount)?;
-            emit!(EventClaimJupReward {
-                value: claimable_amount
-            });
         }
 
         Ok(())
