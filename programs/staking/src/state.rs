@@ -2,6 +2,7 @@ use crate::error::ErrorCode;
 use crate::utils::{reward_per_token, user_earned_amount, SECONDS_IN_YEAR};
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::clock;
+use std::convert::TryFrom;
 use std::convert::TryInto;
 
 #[account]
@@ -30,6 +31,10 @@ pub struct Pool {
     /// The last time xMER reward states were updated.
     pub xmer_last_update_time: u64,
 
+    /// Mint of the xMER.
+    pub jup_reward_mint: Pubkey,
+    /// Vault to store xMER token.
+    pub jup_reward_vault: Pubkey,
     /// duration of JUP farming
     pub jup_reward_duration: u64,
     /// The timestamp at which the JUP farming ends
@@ -40,6 +45,10 @@ pub struct Pool {
     pub jup_reward_rate: u64,
     /// Last calculated JUP reward per pool token.
     pub jup_reward_per_token_stored: u128,
+    /// Total funded jup
+    pub total_funded_jup: u64,
+    /// Whether admin set jup info
+    pub is_jup_info_enable: u8,
 
     /// Only Admin can active jup farming
     pub admin: Pubkey,
@@ -52,6 +61,45 @@ pub struct Pool {
 }
 
 impl Pool {
+    /// Calcualte claimable jup for an user
+    pub fn calculate_claimable_jup_for_an_user(
+        &self,
+        user_pending_jup: u64,
+        user_havested_jup: u64,
+    ) -> Option<u64> {
+        let user_pending_jup: u128 = user_pending_jup.into();
+        let user_havested_jup: u128 = user_havested_jup.into();
+        let total_jup: u128 = self
+            .jup_reward_duration
+            .checked_mul(self.jup_reward_rate)?
+            .into();
+        let total_funded_jup: u128 = self.total_funded_jup.into();
+
+        let claimable_jup = user_pending_jup
+            .checked_mul(total_funded_jup)?
+            .checked_div(total_jup)?;
+
+        let user_can_claim_jup = if claimable_jup > user_havested_jup {
+            claimable_jup.checked_sub(user_havested_jup)?
+        } else {
+            0
+        };
+        u64::try_from(user_can_claim_jup).ok()
+    }
+    /// return actual amount should be funded
+    pub fn fund_jup(&mut self, amount: u64) -> Option<u64> {
+        let total_jup = self.jup_reward_duration.checked_mul(self.jup_reward_rate)?;
+
+        let needed_jup = total_jup.checked_sub(self.total_funded_jup)?;
+
+        let actual_amount = if needed_jup > amount {
+            amount
+        } else {
+            needed_jup
+        };
+        self.total_funded_jup = self.total_funded_jup.checked_add(actual_amount)?;
+        Some(actual_amount)
+    }
     /// Update jup reward
     pub fn update_jup_rewards(&mut self, user: &mut Box<Account<User>>) -> Result<()> {
         let total_staked = self.total_staked;
@@ -68,7 +116,7 @@ impl Pool {
             .user_earned_jup_amount(user)
             .ok_or(ErrorCode::MathOverFlow)?;
 
-        user.jup_reward_per_token_pending = amount;
+        user.jup_reward_pending = amount;
         user.jup_reward_per_token_complete = self.jup_reward_per_token_stored;
 
         Ok(())
@@ -91,7 +139,7 @@ impl Pool {
                 .user_earned_xmer_amount(u)
                 .ok_or(ErrorCode::MathOverFlow)?;
 
-            u.xmer_reward_per_token_pending = amount;
+            u.xmer_reward_pending = amount;
             u.xmer_reward_per_token_complete = self.xmer_reward_per_token_stored;
         }
 
@@ -154,7 +202,7 @@ impl Pool {
             user.balance_staked,
             self.jup_reward_per_token_stored,
             user.jup_reward_per_token_complete,
-            user.jup_reward_per_token_pending,
+            user.jup_reward_pending,
         );
     }
     /// Calculate xmer reward for user
@@ -163,7 +211,7 @@ impl Pool {
             user.balance_staked,
             self.xmer_reward_per_token_stored,
             user.xmer_reward_per_token_complete,
-            user.xmer_reward_per_token_pending,
+            user.xmer_reward_pending,
         );
     }
 
@@ -212,15 +260,17 @@ pub struct User {
     pub pool: Pubkey,
     /// The owner of this account.
     pub owner: Pubkey,
-    /// The amount of token A claimed.
+    /// xmer_reward_per_token_complete
     pub jup_reward_per_token_complete: u128,
-    /// The amount of token A pending claim.
-    pub jup_reward_per_token_pending: u64,
+    /// The amount of Jup pending claim.
+    pub jup_reward_pending: u64,
+    /// The amount of Jup havested.
+    pub jup_reward_havested: u64,
 
-    /// The amount of xMER claimed.
+    /// xmer_reward_per_token_complete
     pub xmer_reward_per_token_complete: u128,
     /// The amount of xMER pending claim.
-    pub xmer_reward_per_token_pending: u64,
+    pub xmer_reward_pending: u64,
     /// The amount staked.
     pub balance_staked: u64,
     /// Signer nonce.
