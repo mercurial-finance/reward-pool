@@ -88,12 +88,14 @@ pub enum CliCommand {
     Deposit {
         #[clap(long)]
         pool: Pubkey,
+        #[clap(long)]
         amount: u64,
     },
     /// User unstakes
     Withdraw {
         #[clap(long)]
         pool: Pubkey,
+        #[clap(long)]
         spt_amount: u64,
     },
     /// Admin adds a wallet as funder

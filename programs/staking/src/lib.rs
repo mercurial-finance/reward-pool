@@ -1,4 +1,4 @@
-//! Single farming program
+//! Staking program
 #![deny(rustdoc::all)]
 #![allow(rustdoc::missing_doc_code_examples)]
 #![warn(clippy::unwrap_used)]
@@ -361,7 +361,7 @@ pub mod single_farming {
     }
 
     /// A user claiming xmer
-    pub fn claim_jup(ctx: Context<ClaimXMerReward>) -> Result<()> {
+    pub fn claim_jup(ctx: Context<ClaimJupReward>) -> Result<()> {
         let pool = &mut ctx.accounts.pool;
         let user = &mut ctx.accounts.user;
         pool.update_jup_rewards(user)?;
@@ -392,8 +392,8 @@ pub mod single_farming {
             let cpi_ctx = CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
                 token::Transfer {
-                    from: ctx.accounts.xmer_reward_vault.to_account_info(),
-                    to: ctx.accounts.xmer_reward_account.to_account_info(),
+                    from: ctx.accounts.jup_reward_vault.to_account_info(),
+                    to: ctx.accounts.jup_reward_account.to_account_info(),
                     authority: ctx.accounts.staking_vault.to_account_info(),
                 },
                 pool_signer,
@@ -421,8 +421,9 @@ pub struct EventPendingXMerReward {
 /// EventPendingReward
 #[event]
 pub struct EventPendingJupReward {
-    /// Pending Jup reward amount
+    /// Claimable Jup reward amount
     pub claimable_amount: u64,
+    /// Pending Jup reward amount
     pub pending_amount: u64,
 }
 

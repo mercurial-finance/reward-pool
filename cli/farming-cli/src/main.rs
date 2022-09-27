@@ -109,10 +109,6 @@ fn initialize_pool(
 ) -> Result<()> {
     let base_keypair = read_keypair_file(base_location).expect("base keypair file not found");
     let base_pubkey = base_keypair.pubkey();
-<<<<<<< HEAD:cli/farming-cli/src/main.rs
-=======
-
->>>>>>> 9ef8301 (fix cli):cli/dual-farming-cli/src/main.rs
     let pool_pda = get_pool_pda(
         &program,
         reward_duration,
