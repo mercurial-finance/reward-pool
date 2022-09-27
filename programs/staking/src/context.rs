@@ -151,6 +151,9 @@ pub struct FundJup<'info> {
         mut,
         has_one = staking_vault,
         has_one = jup_reward_vault,
+        constraint = pool.jup_reward_end_timestamp != 0,
+        constraint = pool.jup_reward_end_timestamp < sysvar::clock::Clock::get().unwrap().unix_timestamp.try_into().unwrap(), // user can only claim jup if farming is over
+        constraint = pool.is_jup_info_enable != 0
     )]
     pub pool: Box<Account<'info, Pool>>,
     /// Staking vault PDA
@@ -259,7 +262,7 @@ pub struct ClaimXMerReward<'info> {
     pub token_program: Program<'info, Token>,
 }
 
-/// Accounts for [Claim](/single_farming/instruction/struct.Claim.html) instruction
+/// Accounts for [ClaimJupReward](/staking/instruction/struct.Claim.html) instruction
 #[derive(Accounts)]
 pub struct ClaimJupReward<'info> {
     /// The farming pool PDA.

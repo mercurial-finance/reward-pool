@@ -254,7 +254,7 @@ impl Pool {
 
 /// User account in pool
 #[account]
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct User {
     /// Pool the this user belongs to.
     pub pool: Pubkey,
