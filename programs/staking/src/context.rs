@@ -72,6 +72,9 @@ pub struct SetJupInformation<'info> {
         mut,
         has_one = admin,
         has_one = staking_vault,
+        constraint = pool.jup_reward_end_timestamp != 0,
+        constraint = pool.jup_reward_end_timestamp < sysvar::clock::Clock::get().unwrap().unix_timestamp.try_into().unwrap(), // user can only claim jup if farming is over
+        constraint = pool.is_jup_info_enable == 0
     )]
     /// The farming pool PDA.
     pub pool: Box<Account<'info, Pool>>,
