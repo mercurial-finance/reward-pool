@@ -58,6 +58,7 @@ pub struct ActivateJupFarming<'info> {
     #[account(
         mut,
         has_one = admin,
+        constraint = pool.jup_last_update_time == 0 // only allow update 1 time
     )]
     /// The farming pool PDA.
     pub pool: Box<Account<'info, Pool>>,
