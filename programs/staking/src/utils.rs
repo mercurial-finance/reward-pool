@@ -1,7 +1,5 @@
 use std::convert::TryInto;
 
-/// rate precision
-pub const RATE_PRECISION: u128 = 1_000_000_000_000;
 ///  precision
 pub const PRECISION: u128 = 1_000_000_000;
 ///  seconds in year
@@ -60,11 +58,6 @@ pub fn user_earned_amount(
 
 /// Rate by funding
 pub fn rate_by_funding(funding_amount: u64, reward_duration: u64) -> Option<u64> {
-    let funding_amount: u128 = funding_amount.into();
-    let reward_duration: u128 = reward_duration.into();
-    let rate = funding_amount
-        .checked_mul(RATE_PRECISION)?
-        .checked_div(reward_duration)?;
-
-    rate.try_into().ok()
+    let annual_multiplier = SECONDS_IN_YEAR.checked_div(reward_duration)?;
+    funding_amount.checked_mul(annual_multiplier)
 }
