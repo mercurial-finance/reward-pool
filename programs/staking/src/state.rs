@@ -121,7 +121,7 @@ impl Pool {
             .user_earned_jup_amount(user)
             .ok_or(ErrorCode::MathOverFlow)?;
 
-        user.jup_reward_pending = amount;
+        user.total_jup_reward = amount;
         user.jup_reward_per_token_complete = self.jup_reward_per_token_stored;
 
         Ok(())
@@ -207,7 +207,7 @@ impl Pool {
             user.balance_staked,
             self.jup_reward_per_token_stored,
             user.jup_reward_per_token_complete,
-            user.jup_reward_pending,
+            user.total_jup_reward,
         );
     }
     /// Calculate xmer reward for user
@@ -268,7 +268,7 @@ pub struct User {
     /// xmer_reward_per_token_complete
     pub jup_reward_per_token_complete: u128,
     /// The amount of Jup pending claim.
-    pub jup_reward_pending: u64,
+    pub total_jup_reward: u64,
     /// The amount of Jup harvested.
     pub jup_reward_harvested: u64,
 

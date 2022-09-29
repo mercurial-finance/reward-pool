@@ -4,7 +4,7 @@ use anchor_lang::solana_program::sysvar;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use std::convert::TryInto;
 
-/// Accounts for [InitializePool](/single_farming/instruction/struct.InitializePool.html) instruction
+/// Accounts for [InitializePool](/staking/instruction/struct.InitializePool.html) instruction
 #[derive(Accounts)]
 pub struct InitializePool<'info> {
     /// The farming pool PDA.
@@ -66,7 +66,7 @@ pub struct ActivateJupFarming<'info> {
     pub admin: Signer<'info>,
 }
 
-/// Accounts for [SetJupInformation](/staking/instruction/struct..html) instruction
+/// Accounts for [SetJupInformation](/staking/instruction/struct.SetJupInformation.html) instruction
 #[derive(Accounts)]
 pub struct SetJupInformation<'info> {
     #[account(
@@ -118,7 +118,7 @@ pub struct FunderChange<'info> {
     pub admin: Signer<'info>,
 }
 
-/// Accounts for [FundXMer](/staking/instruction/struct.Fund.html) instruction.
+/// Accounts for [FundXMer](/staking/instruction/struct.FundXMer.html) instruction.
 #[derive(Accounts)]
 pub struct FundXMer<'info> {
     /// Global accounts for the staking instance.
@@ -147,7 +147,7 @@ pub struct FundXMer<'info> {
     pub token_program: Program<'info, Token>,
 }
 
-/// Accounts for [FundJup](/staking/instruction/struct.Fund.html) instruction.
+/// Accounts for [FundJup](/staking/instruction/struct.FundJup.html) instruction.
 #[derive(Accounts)]
 pub struct FundJup<'info> {
     /// Global accounts for the staking instance.
@@ -173,7 +173,7 @@ pub struct FundJup<'info> {
     pub token_program: Program<'info, Token>,
 }
 
-/// Accounts for [CreateUser](/single_farming/instruction/struct.CreateUser.html) instruction
+/// Accounts for [CreateUser](/staking/instruction/struct.CreateUser.html) instruction
 #[derive(Accounts)]
 pub struct CreateUser<'info> {
     /// The farming pool PDA.
@@ -197,7 +197,7 @@ pub struct CreateUser<'info> {
     pub system_program: Program<'info, System>,
 }
 
-/// Accounts for [Deposit](/single_farming/instruction/struct.Deposit.html) instruction and [Withdraw](/single_farming/instruction/struct.Withdraw.html) instruction
+/// Accounts for [Deposit](/staking/instruction/struct.DepositOrWithdraw.html) instruction and [Withdraw](/staking/instruction/struct.Withdraw.html) instruction
 #[derive(Accounts)]
 pub struct DepositOrWithdraw<'info> {
     /// The farming pool PDA.
@@ -227,10 +227,10 @@ pub struct DepositOrWithdraw<'info> {
     pub token_program: Program<'info, Token>,
 }
 
-/// Accounts for [Claim](/single_farming/instruction/struct.Claim.html) instruction
+/// Accounts for [Claim](/staking/instruction/struct.ClaimXMerReward.html) instruction
 #[derive(Accounts)]
 pub struct ClaimXMerReward<'info> {
-    /// The farming pool PDA.
+    /// The farming pool.
     #[account(
         mut,
         has_one = staking_vault,
@@ -294,7 +294,7 @@ pub struct ClaimJupReward<'info> {
     pub token_program: Program<'info, Token>,
 }
 
-/// Accounts for [CloseUser](/single_farming/instruction/struct.CloseUser.html) instruction
+/// Accounts for [CloseUser](/staking/instruction/struct.CloseUser.html) instruction
 #[derive(Accounts)]
 pub struct CloseUser<'info> {
     /// The farming pool PDA.
@@ -305,7 +305,7 @@ pub struct CloseUser<'info> {
         has_one = owner,
         has_one = pool,
         constraint = user.balance_staked == 0,
-        constraint = user.jup_reward_pending == user.jup_reward_harvested,
+        constraint = user.total_jup_reward == user.jup_reward_harvested,
         constraint = user.xmer_reward_pending == 0,
         constraint = pool.is_jup_info_enable != 0
     )]
@@ -313,4 +313,16 @@ pub struct CloseUser<'info> {
     pub user: Account<'info, User>,
     /// Owner of the user account
     pub owner: Signer<'info>,
+}
+
+/// Accounts for [GetUserInfo](/staking/instruction/struct.GetUserInfo.html) instruction
+#[derive(Accounts)]
+pub struct GetUserInfo<'info> { 
+    /// The farming pool.
+    #[account(mut,)]
+    pub pool: Box<Account<'info, Pool>>,
+
+    /// User staking PDA.
+    #[account(mut, has_one = pool,)]
+    pub user: Box<Account<'info, User>>,
 }

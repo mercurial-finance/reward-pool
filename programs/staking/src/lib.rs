@@ -206,7 +206,7 @@ pub mod staking {
         user.pool = *ctx.accounts.pool.to_account_info().key;
         user.owner = *ctx.accounts.owner.key;
         user.jup_reward_per_token_complete = 0;
-        user.jup_reward_pending = 0;
+        user.total_jup_reward = 0;
         user.xmer_reward_per_token_complete = 0;
         user.xmer_reward_pending = 0;
         user.balance_staked = 0;
@@ -367,12 +367,12 @@ pub mod staking {
         pool.update_jup_rewards(user)?;
 
         let claimable_amount = pool
-            .calculate_claimable_jup_for_an_user(user.jup_reward_pending, user.jup_reward_harvested)
+            .calculate_claimable_jup_for_an_user(user.total_jup_reward, user.jup_reward_harvested)
             .ok_or(ErrorCode::MathOverFlow)?;
 
         // emit pending reward
         emit!(EventPendingJupReward {
-            pending_amount: user.jup_reward_pending,
+            pending_amount: user.total_jup_reward,
             claimable_amount: claimable_amount,
         });
         if claimable_amount > 0 {
@@ -401,6 +401,21 @@ pub mod staking {
             token::transfer(cpi_ctx, claimable_amount)?;
         }
 
+        Ok(())
+    }
+
+    /// Function allows FE to simulate and get user information
+    pub fn get_user_info(ctx: Context<GetUserInfo>) -> Result<()> {
+        let pool = &mut ctx.accounts.pool;
+        let user = &mut ctx.accounts.user;
+        pool.update_jup_rewards(user)?;
+        pool.update_xmer_rewards(Some(user))?;
+        // emit pending reward
+        emit!(EventUserReward {
+            xmer_pending: ctx.accounts.user.xmer_reward_pending,
+            total_jup_reward: ctx.accounts.user.total_jup_reward,
+            total_jup_harvested: ctx.accounts.user.jup_reward_harvested,
+        });
         Ok(())
     }
 
@@ -463,4 +478,12 @@ pub struct EventFundXMer {
 #[event]
 pub struct EventFundJup {
     amount: u64,
+}
+
+/// User info event
+#[event]
+pub struct EventUserReward {
+    xmer_pending: u64,
+    total_jup_reward: u64,
+    total_jup_harvested: u64,
 }
