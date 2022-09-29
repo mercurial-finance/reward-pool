@@ -267,7 +267,7 @@ describe("staking", () => {
       userKeypair.publicKey.toBase58()
     );
     assert.strictEqual(userState.jupRewardPerTokenComplete.toNumber(), 0);
-    assert.strictEqual(userState.jupRewardPending.toNumber(), 0);
+    assert.strictEqual(userState.totalJupReward.toNumber(), 0);
     assert.strictEqual(userState.jupRewardHarvested.toNumber(), 0);
     assert.strictEqual(userState.xmerRewardPerTokenComplete.toNumber(), 0);
     assert.strictEqual(userState.xmerRewardPending.toNumber(), 0);
@@ -294,7 +294,7 @@ describe("staking", () => {
       depositAmount.toNumber()
     );
     assert.strictEqual(userState.jupRewardPerTokenComplete.toNumber(), 0);
-    assert.strictEqual(userState.jupRewardPending.toNumber(), 0);
+    assert.strictEqual(userState.totalJupReward.toNumber(), 0);
     assert.strictEqual(userState.jupRewardHarvested.toNumber(), 0);
     assert.strictEqual(userState.xmerRewardPending.toNumber(), 0);
     assert.strictEqual(userState.xmerRewardPerTokenComplete.toNumber(), 0);
@@ -341,7 +341,7 @@ describe("staking", () => {
       expectedAmount.toNumber()
     );
     assert.strictEqual(userState.jupRewardPerTokenComplete.toNumber(), 0);
-    assert.strictEqual(userState.jupRewardPending.toNumber(), 0);
+    assert.strictEqual(userState.totalJupReward.toNumber(), 0);
     assert.strictEqual(userState.jupRewardHarvested.toNumber(), 0);
     assert.strictEqual(userState.xmerRewardPending.toNumber(), 0);
     assert.strictEqual(userState.xmerRewardPerTokenComplete.toNumber(), 0);
@@ -469,7 +469,7 @@ describe("staking", () => {
       totalStaked.toNumber()
     );
     assert.strictEqual(userState.jupRewardPerTokenComplete.toNumber(), 0);
-    assert.strictEqual(userState.jupRewardPending.toNumber(), 0);
+    assert.strictEqual(userState.totalJupReward.toNumber(), 0);
     assert.strictEqual(userState.jupRewardHarvested.toNumber(), 0);
     assert.notStrictEqual(userState.xmerRewardPending.toNumber(), 0);
     assert.notStrictEqual(userState.xmerRewardPerTokenComplete.toNumber(), 0);
@@ -514,7 +514,7 @@ describe("staking", () => {
 
     const userState = await program.account.user.fetch(user);
     assert.strictEqual(userState.jupRewardPerTokenComplete.toNumber(), 0);
-    assert.strictEqual(userState.jupRewardPending.toNumber(), 0);
+    assert.strictEqual(userState.totalJupReward.toNumber(), 0);
     assert.strictEqual(userState.jupRewardHarvested.toNumber(), 0);
     assert.strictEqual(userState.xmerRewardPending.toNumber(), 0);
   });
@@ -565,7 +565,7 @@ describe("staking", () => {
     const userState = await program.account.user.fetch(user);
     assert.notStrictEqual(userState.jupRewardPerTokenComplete.toNumber(), 0);
     // Accumulated some JUP
-    assert.notStrictEqual(userState.jupRewardPending.toNumber(), 0);
+    assert.notStrictEqual(userState.totalJupReward.toNumber(), 0);
 
     assert.strictEqual(userState.jupRewardHarvested.toNumber(), 0);
     assert.strictEqual(userState.xmerRewardPending.toNumber(), 0);
@@ -679,8 +679,8 @@ describe("staking", () => {
       .rpc();
     const afterUserState = await program.account.user.fetch(user);
     assert.strictEqual(
-      afterUserState.jupRewardPending.toNumber() >
-        beforeUserState.jupRewardPending.toNumber(),
+      afterUserState.totalJupReward.toNumber() >
+        beforeUserState.totalJupReward.toNumber(),
       true
     );
   });
