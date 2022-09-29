@@ -153,14 +153,10 @@ pub struct FundJup<'info> {
     /// Global accounts for the staking instance.
     #[account(
         mut,
-        has_one = staking_vault,
         has_one = jup_reward_vault,        
         constraint = pool.is_jup_info_enable != 0
     )]
     pub pool: Box<Account<'info, Pool>>,
-    /// Staking vault PDA
-    #[account(mut)]
-    pub staking_vault: Box<Account<'info, TokenAccount>>,
     /// Reward xMER Vault PDA
     #[account(mut)]
     pub jup_reward_vault: Box<Account<'info, TokenAccount>>,
@@ -309,7 +305,7 @@ pub struct CloseUser<'info> {
         has_one = owner,
         has_one = pool,
         constraint = user.balance_staked == 0,
-        constraint = user.jup_reward_pending == user.jup_reward_havested,
+        constraint = user.jup_reward_pending == user.jup_reward_harvested,
         constraint = user.xmer_reward_pending == 0,
         constraint = pool.is_jup_info_enable != 0
     )]

@@ -61,17 +61,19 @@ pub struct Pool {
 }
 
 impl Pool {
-    /// Calcualte claimable jup for an user
+    /// Calculate claimable jup for an user
     pub fn calculate_claimable_jup_for_an_user(
         &self,
         user_pending_jup: u64,
-        user_havested_jup: u64,
+        user_harvested_jup: u64,
     ) -> Option<u64> {
         let user_pending_jup: u128 = user_pending_jup.into();
-        let user_havested_jup: u128 = user_havested_jup.into();
+        let user_harvested_jup: u128 = user_harvested_jup.into();
+
         let total_jup: u128 = self
-            .jup_reward_duration
-            .checked_mul(self.jup_reward_rate)?
+            .jup_reward_rate
+            .checked_mul(self.jup_reward_duration)?
+            .checked_div(SECONDS_IN_YEAR)?
             .into();
         let total_funded_jup: u128 = self.total_funded_jup.into();
 
@@ -79,8 +81,8 @@ impl Pool {
             .checked_mul(total_funded_jup)?
             .checked_div(total_jup)?;
 
-        let user_can_claim_jup = if claimable_jup > user_havested_jup {
-            claimable_jup.checked_sub(user_havested_jup)?
+        let user_can_claim_jup = if claimable_jup > user_harvested_jup {
+            claimable_jup.checked_sub(user_harvested_jup)?
         } else {
             0
         };
@@ -88,7 +90,10 @@ impl Pool {
     }
     /// return actual amount should be funded
     pub fn fund_jup(&mut self, amount: u64) -> Option<u64> {
-        let total_jup = self.jup_reward_duration.checked_mul(self.jup_reward_rate)?;
+        let total_jup = self
+            .jup_reward_rate
+            .checked_mul(self.jup_reward_duration)?
+            .checked_div(SECONDS_IN_YEAR)?;
 
         let needed_jup = total_jup.checked_sub(self.total_funded_jup)?;
 
@@ -264,8 +269,8 @@ pub struct User {
     pub jup_reward_per_token_complete: u128,
     /// The amount of Jup pending claim.
     pub jup_reward_pending: u64,
-    /// The amount of Jup havested.
-    pub jup_reward_havested: u64,
+    /// The amount of Jup harvested.
+    pub jup_reward_harvested: u64,
 
     /// xmer_reward_per_token_complete
     pub xmer_reward_per_token_complete: u128,

@@ -28,7 +28,7 @@ declare_id!("9D9cdG8WV336qsjWe6PeMkqcsBmAWTZhddQgTfQrsHqc");
 
 /// Single farming program
 #[program]
-pub mod single_farming {
+pub mod staking {
     use super::*;
 
     /// Initializes a new pool
@@ -367,7 +367,7 @@ pub mod single_farming {
         pool.update_jup_rewards(user)?;
 
         let claimable_amount = pool
-            .calculate_claimable_jup_for_an_user(user.jup_reward_pending, user.jup_reward_havested)
+            .calculate_claimable_jup_for_an_user(user.jup_reward_pending, user.jup_reward_harvested)
             .ok_or(ErrorCode::MathOverFlow)?;
 
         // emit pending reward
@@ -376,9 +376,9 @@ pub mod single_farming {
             claimable_amount: claimable_amount,
         });
         if claimable_amount > 0 {
-            // update jup reward havested
-            ctx.accounts.user.jup_reward_havested = user
-                .jup_reward_havested
+            // update jup reward harvested
+            ctx.accounts.user.jup_reward_harvested = user
+                .jup_reward_harvested
                 .checked_add(claimable_amount)
                 .ok_or(ErrorCode::MathOverFlow)?;
 

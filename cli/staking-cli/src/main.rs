@@ -275,7 +275,6 @@ pub fn fund_jup(program: &Program, funder: &Keypair, pool_pda: &Pubkey, amount: 
         .request()
         .accounts(staking::accounts::FundJup {
             pool: *pool_pda,
-            staking_vault: pool.staking_vault,
             jup_reward_vault: pool.jup_reward_vault,
             funder: funder.pubkey(),
             from_jup,
