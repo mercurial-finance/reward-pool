@@ -1,5 +1,7 @@
 use crate::error::ErrorCode;
-use crate::utils::{rate_by_funding, reward_per_token, user_earned_amount, SECONDS_IN_YEAR};
+use crate::utils::{
+    rate_by_funding, reward_per_token, user_earned_amount, PRECISION, SECONDS_IN_YEAR,
+};
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::clock;
 use std::convert::TryFrom;
@@ -289,9 +291,12 @@ fn test_remaining_reward() {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    let jup_reward = 4_548_512_237_353_040_124u64;
+    // let jup_reward = 4_548_512_237_353_040_124u64;
+    let jup_reward = 143_441_881_917_165_473u64;
     let reward_duration = 86400u64 * 90; //  3 months
+
     let reward_rate = rate_by_funding(jup_reward, reward_duration).unwrap();
+    println!("reward_rate {}", reward_rate);
 
     let mut user_1 = User {
         balance_staked: 123_456_789,
@@ -347,5 +352,8 @@ fn test_remaining_reward() {
 
     let total_claimable_reward = user_1.total_jup_reward + user_2.total_jup_reward;
 
+    // println!("total_claimable_reward {}", total_claimable_reward);
+
     println!("{}", jup_reward - total_claimable_reward);
+    assert_eq!(jup_reward - total_claimable_reward, 1);
 }

@@ -25,16 +25,25 @@ pub fn reward_per_token(
             time_period
                 .checked_mul(reward_rate.into())
                 .unwrap()
-                .checked_mul(PRECISION.into())
-                .unwrap()
-                .checked_div(SECONDS_IN_YEAR.into())
-                .unwrap()
                 .checked_div(total_staked.into())
-                .unwrap()
-                .try_into()
-                .unwrap(), //back to u128
+                .unwrap(),
         )
         .unwrap();
+    // let rewards = reward_per_token_stored
+    //     .checked_add(
+    //         time_period
+    //             .checked_mul(reward_rate.into())
+    //             .unwrap()
+    //             .checked_mul(PRECISION.into())
+    //             .unwrap()
+    //             .checked_div(SECONDS_IN_YEAR.into())
+    //             .unwrap()
+    //             .checked_div(total_staked.into())
+    //             .unwrap()
+    //             .try_into()
+    //             .unwrap(), //back to u128
+    //     )
+    //     .unwrap();
 
     Some(rewards)
 }
@@ -58,6 +67,12 @@ pub fn user_earned_amount(
 
 /// Rate by funding
 pub fn rate_by_funding(funding_amount: u64, reward_duration: u64) -> Option<u64> {
-    let annual_multiplier = SECONDS_IN_YEAR.checked_div(reward_duration)?;
-    funding_amount.checked_mul(annual_multiplier)
+    // let annual_multiplier = SECONDS_IN_YEAR.checked_div(reward_duration)?;
+    // funding_amount.checked_mul(annual_multiplier)
+    let funding_amount: u128 = funding_amount.into();
+    let reward_duration: u128 = reward_duration.into();
+    let reward_per_seconds = funding_amount
+        .checked_mul(PRECISION)?
+        .checked_div(reward_duration)?;
+    Some(reward_per_seconds.try_into().ok()?)
 }
