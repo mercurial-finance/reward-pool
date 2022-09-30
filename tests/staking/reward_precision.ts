@@ -348,5 +348,13 @@ describe("staking reward precision", () => {
     );
     assert.deepStrictEqual(totalClaimableXMer.lt(xMerReward), true);
     assert.deepStrictEqual(totalClaimableJup.lt(jupReward), true);
+
+    const xMerRemainingRatio =
+      (xMerReward.toNumber() / totalClaimableXMer.toNumber() - 1) * 100;
+    const jupRemainingRatio =
+      (jupReward.toNumber() / totalClaimableJup.toNumber() - 1) * 100;
+
+    assert.deepStrictEqual(xMerRemainingRatio < 0.001, true);
+    assert.deepStrictEqual(jupRemainingRatio < 0.001, true);
   });
 });

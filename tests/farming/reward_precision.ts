@@ -159,7 +159,7 @@ async function waitUntilOnChainTime(
   } while (onChainTime <= time);
 }
 
-describe("dual-farming", () => {
+describe.only("dual-farming", () => {
   let stakingMint: PublicKey = null;
   let rewardAMint: PublicKey = null;
   let rewardBMint: PublicKey = null;
@@ -351,5 +351,13 @@ describe("dual-farming", () => {
 
     assert.strictEqual(userRewardABalance.lt(FUND_AMOUNT), true);
     assert.strictEqual(userRewardBBalance.lt(FUND_AMOUNT), true);
+
+    const remainingRewardA =
+      (FUND_AMOUNT.toNumber() / userRewardABalance.toNumber() - 1) * 100;
+    const remainingRewardB =
+      (FUND_AMOUNT.toNumber() / userRewardBBalance.toNumber() - 1) * 100;
+
+    assert.deepStrictEqual(remainingRewardA < 0.001, true);
+    assert.deepStrictEqual(remainingRewardB < 0.001, true);
   });
 });
