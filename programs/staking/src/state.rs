@@ -1,9 +1,10 @@
 use crate::error::ErrorCode;
-use crate::utils::{reward_per_token, user_earned_amount, SECONDS_IN_YEAR};
+use crate::utils::{rate_by_funding, reward_per_token, user_earned_amount, SECONDS_IN_YEAR};
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::clock;
 use std::convert::TryFrom;
 use std::convert::TryInto;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[account]
 #[derive(Default, Debug)]
@@ -280,4 +281,71 @@ pub struct User {
     pub balance_staked: u64,
     /// Signer nonce.
     pub nonce: u8,
+}
+
+#[test]
+fn test_remaining_reward() {
+    let mut current_time = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let jup_reward = 4_548_512_237_353_040_124u64;
+    let reward_duration = 86400u64 * 90; //  3 months
+    let reward_rate = rate_by_funding(jup_reward, reward_duration).unwrap();
+
+    let mut user_1 = User {
+        balance_staked: 123_456_789,
+        ..Default::default()
+    };
+
+    let mut user_2 = User {
+        balance_staked: 133_244_355,
+        ..Default::default()
+    };
+
+    let mut pool = Pool {
+        jup_reward_rate: reward_rate,
+        jup_reward_end_timestamp: current_time + reward_duration,
+        ..Default::default()
+    };
+
+    pool.total_staked = user_1.balance_staked + user_2.balance_staked;
+
+    pool.is_jup_info_enable = 1;
+    pool.jup_last_update_time = current_time;
+
+    current_time += reward_duration;
+
+    pool.jup_reward_per_token_stored = reward_per_token(
+        pool.total_staked,
+        pool.jup_reward_end_timestamp,
+        pool.jup_reward_per_token_stored,
+        pool.jup_last_update_time,
+        pool.jup_reward_rate,
+    )
+    .unwrap();
+    pool.jup_last_update_time = current_time;
+
+    user_1.total_jup_reward = user_earned_amount(
+        user_1.balance_staked,
+        pool.jup_reward_per_token_stored,
+        user_1.jup_reward_per_token_complete,
+        user_1.total_jup_reward,
+    )
+    .unwrap();
+
+    user_2.total_jup_reward = user_earned_amount(
+        user_2.balance_staked,
+        pool.jup_reward_per_token_stored,
+        user_2.jup_reward_per_token_complete,
+        user_2.total_jup_reward,
+    )
+    .unwrap();
+
+    user_1.jup_reward_per_token_complete = pool.jup_reward_per_token_stored;
+    user_2.jup_reward_per_token_complete = pool.jup_reward_per_token_stored;
+
+    let total_claimable_reward = user_1.total_jup_reward + user_2.total_jup_reward;
+
+    println!("{}", jup_reward - total_claimable_reward);
 }

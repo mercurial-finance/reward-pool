@@ -349,6 +349,8 @@ describe("staking reward precision", () => {
     assert.deepStrictEqual(totalClaimableXMer.lt(xMerReward), true);
     assert.deepStrictEqual(totalClaimableJup.lt(jupReward), true);
 
+    console.log(totalClaimableJup.toNumber());
+
     const xMerRemainingRatio =
       (xMerReward.toNumber() / totalClaimableXMer.toNumber() - 1) * 100;
     const jupRemainingRatio =
