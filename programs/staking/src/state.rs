@@ -1,7 +1,6 @@
 use crate::error::ErrorCode;
 use crate::utils::{
     get_current_time, rate_by_funding, reward_per_token, user_earned_amount, PRECISION,
-    SECONDS_IN_YEAR,
 };
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::clock;

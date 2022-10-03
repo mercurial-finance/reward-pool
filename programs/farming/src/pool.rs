@@ -1,8 +1,6 @@
 pub use crate::*;
 use spl_math::uint::U192;
 
-const SECONDS_IN_YEAR: u64 = 365 * 24 * 60 * 60;
-
 /// Rate by funding
 fn calculate_reward_rate(funding_amount: u64, reward_duration: u64) -> Option<u64> {
     let funding_amount: u128 = funding_amount.into();

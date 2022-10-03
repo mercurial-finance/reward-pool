@@ -3,8 +3,6 @@ use std::convert::TryInto;
 
 ///  precision
 pub const PRECISION: u128 = 1_000_000_000;
-///  seconds in year
-pub const SECONDS_IN_YEAR: u64 = 365 * 24 * 60 * 60;
 
 /// Calculate reward base on staked token.
 pub fn reward_per_token(
