@@ -3,6 +3,16 @@ use spl_math::uint::U192;
 
 const SECONDS_IN_YEAR: u64 = 365 * 24 * 60 * 60;
 
+/// Rate by funding
+fn calculate_reward_rate(funding_amount: u64, reward_duration: u64) -> Option<u64> {
+    let funding_amount: u128 = funding_amount.into();
+    let reward_duration: u128 = reward_duration.into();
+    let reward_rate = funding_amount
+        .checked_mul(PRECISION)?
+        .checked_div(reward_duration)?;
+    reward_rate.try_into().ok()
+}
+
 /// Calculate reward per token
 pub fn reward_per_token(
     pool: &Account<Pool>,
@@ -25,10 +35,6 @@ pub fn reward_per_token(
             time_period
                 .checked_mul(pool.reward_a_rate.into())
                 .unwrap()
-                .checked_mul(PRECISION.into())
-                .unwrap()
-                .checked_div(SECONDS_IN_YEAR.into())
-                .unwrap()
                 .checked_div(total_staked.into())
                 .unwrap()
                 .try_into()
@@ -41,10 +47,6 @@ pub fn reward_per_token(
         .checked_add(
             time_period
                 .checked_mul(pool.reward_b_rate.into())
-                .unwrap()
-                .checked_mul(PRECISION.into())
-                .unwrap()
-                .checked_div(SECONDS_IN_YEAR.into())
                 .unwrap()
                 .checked_div(total_staked.into())
                 .unwrap()
@@ -69,40 +71,34 @@ pub fn rate_after_funding(
         .unwrap();
     let reward_period_end = pool.reward_duration_end;
 
-    let annual_multiplier = SECONDS_IN_YEAR.checked_div(pool.reward_duration).unwrap();
     let a: u64;
     let b: u64;
 
     if current_time >= reward_period_end {
-        a = funding_amount_a.checked_mul(annual_multiplier).unwrap();
-        b = funding_amount_b.checked_mul(annual_multiplier).unwrap();
+        a = calculate_reward_rate(funding_amount_a, pool.reward_duration).unwrap();
+        b = calculate_reward_rate(funding_amount_b, pool.reward_duration).unwrap();
     } else {
         let remaining_seconds = reward_period_end.checked_sub(current_time).unwrap();
         let leftover_a: u64 = (remaining_seconds as u128)
             .checked_mul(pool.reward_a_rate.into())
             .unwrap()
-            .checked_div(SECONDS_IN_YEAR.into())
+            .checked_div(PRECISION)
             .unwrap()
             .try_into()
             .unwrap(); //back to u64
         let leftover_b: u64 = (remaining_seconds as u128)
             .checked_mul(pool.reward_b_rate.into())
             .unwrap()
-            .checked_div(SECONDS_IN_YEAR.into())
+            .checked_div(PRECISION)
             .unwrap()
             .try_into()
             .unwrap(); //back to u64
 
-        a = funding_amount_a
-            .checked_add(leftover_a)
-            .unwrap()
-            .checked_mul(annual_multiplier)
-            .unwrap();
-        b = funding_amount_b
-            .checked_add(leftover_b)
-            .unwrap()
-            .checked_mul(annual_multiplier)
-            .unwrap();
+        let total_a = leftover_a.checked_add(funding_amount_a).unwrap();
+        let total_b = leftover_b.checked_add(funding_amount_b).unwrap();
+
+        a = calculate_reward_rate(total_a, pool.reward_duration).unwrap();
+        b = calculate_reward_rate(total_b, pool.reward_duration).unwrap();
     }
 
     Ok((a, b))
