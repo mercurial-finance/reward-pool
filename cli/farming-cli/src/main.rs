@@ -3,13 +3,16 @@ mod utils;
 
 use crate::args::*;
 use crate::utils::*;
+use anyhow::Ok;
 use anyhow::Result;
 
+use anchor_client::solana_client::rpc_filter::RpcFilterType;
 use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use anchor_client::solana_sdk::signer::keypair::*;
 use anchor_client::solana_sdk::signer::Signer;
 use anchor_client::{Client, Program};
+use farming::Pool;
 use std::rc::Rc;
 use std::str::FromStr;
 
@@ -92,6 +95,9 @@ fn main() -> Result<()> {
         }
         CliCommand::StakeInfo { pool } => {
             stake_info(&program, &pool, &payer.pubkey())?;
+        }
+        CliCommand::CheckFunderAllPool {} => {
+            check_funder_all_pool(&program)?;
         }
     }
 
@@ -428,5 +434,17 @@ pub fn stake_info(program: &Program, pool_pda: &Pubkey, user: &Pubkey) -> Result
         "reward_b_per_token_pending {:#?}",
         user.reward_b_per_token_pending
     );
+    Ok(())
+}
+
+fn check_funder_all_pool(program: &Program) -> Result<()> {
+    let pools: Vec<(Pubkey, Pool)> = program.accounts::<Pool>(vec![]).unwrap();
+
+    println!("len pool {}", pools.len());
+
+    for pool in pools.iter() {
+        assert_eq!(pool.1.reward_a_rate_u128, 0);
+        assert_eq!(pool.1.reward_b_rate_u128, 0);
+    }
     Ok(())
 }

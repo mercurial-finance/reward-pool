@@ -146,6 +146,8 @@ pub enum CliCommand {
         #[clap(long)]
         pool: Pubkey,
     },
+
+    CheckFunderAllPool {},
 }
 
 #[derive(Parser, Debug)]

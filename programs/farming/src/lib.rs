@@ -9,11 +9,11 @@ use std::convert::Into;
 use std::convert::TryInto;
 use std::fmt::Debug;
 
+use crate::pool::*;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{clock, sysvar};
 use anchor_spl::token::{self, Mint, Token, TokenAccount};
-
-use crate::pool::*;
+use std::convert::TryFrom;
 
 /// Export for pool implementation
 pub mod pool;
@@ -88,8 +88,6 @@ pub mod farming {
         pool.total_staked = 0;
         pool.reward_duration_end = 0;
         pool.last_update_time = 0;
-        pool.reward_a_rate = 0;
-        pool.reward_b_rate = 0;
         pool.reward_a_per_token_stored = 0;
         pool.reward_b_per_token_stored = 0;
         pool.user_stake_count = 0;
@@ -275,8 +273,16 @@ pub mod farming {
         update_rewards(pool, None, pool.total_staked).unwrap();
 
         let (reward_a_rate, reward_b_rate) = rate_after_funding(pool, amount_a, amount_b)?;
-        pool.reward_a_rate = reward_a_rate;
-        pool.reward_b_rate = reward_b_rate;
+        pool.reward_a_rate_u128 = reward_a_rate;
+        pool.reward_b_rate_u128 = reward_b_rate;
+
+        // this is to avoid breaking old integrator
+        if let Ok(reward_rate) = u64::try_from(reward_a_rate) {
+            pool._reward_a_rate = reward_rate;
+        }
+        if let Ok(reward_rate) = u64::try_from(reward_b_rate) {
+            pool._reward_b_rate = reward_rate;
+        }
 
         // Transfer reward A tokens into the A vault.
         if amount_a > 0 {
@@ -434,6 +440,18 @@ pub mod farming {
     pub fn close_user(ctx: Context<CloseUser>) -> Result<()> {
         let pool = &mut ctx.accounts.pool;
         pool.user_stake_count = pool.user_stake_count.checked_sub(1).unwrap();
+        Ok(())
+    }
+
+    /// anyone can call this
+    pub fn migrate_farming_rate(ctx: Context<MigrateFarmingRate>) -> Result<()> {
+        let pool = &mut ctx.accounts.pool;
+        if pool.reward_a_rate_u128 == 0 && pool._reward_a_rate != 0 {
+            pool.reward_a_rate_u128 = pool._reward_a_rate.into();
+        }
+        if pool.reward_b_rate_u128 == 0 && pool._reward_b_rate != 0 {
+            pool.reward_b_rate_u128 = pool._reward_b_rate.into();
+        }
         Ok(())
     }
 
@@ -887,6 +905,14 @@ pub struct CloseUser<'info> {
     #[account(mut)]
     owner: Signer<'info>,
 }
+
+/// Accounts for [MigrateFarmingRate](/dual_farming/instruction/struct.MigrateFarmingRate.html) instruction
+#[derive(Accounts)]
+pub struct MigrateFarmingRate<'info> {
+    #[account(mut)]
+    pool: Box<Account<'info, Pool>>,
+}
+
 /// Accounts for [ClosePool](/dual_farming/instruction/struct.ClosePool.html) instruction
 #[derive(Accounts)]
 pub struct ClosePool<'info> {
@@ -926,6 +952,7 @@ pub struct ClosePool<'info> {
 
 /// Pool account wrapper
 #[account]
+#[derive(Debug)]
 pub struct Pool {
     /// Privileged account.
     pub authority: Pubkey, // 32
@@ -951,10 +978,10 @@ pub struct Pool {
     pub reward_duration_end: u64, // 8
     /// The last time reward states were updated.
     pub last_update_time: u64, // 8
-    /// Rate of reward A distribution.
-    pub reward_a_rate: u64, // 8
-    /// Rate of reward B distribution.
-    pub reward_b_rate: u64, // 8
+    /// deprecated field
+    pub _reward_a_rate: u64, // 8
+    /// deprecated field
+    pub _reward_b_rate: u64, // 8
     /// Last calculated reward A per pool token.
     pub reward_a_per_token_stored: u128, // 16
     /// Last calculated reward B per pool token.
@@ -964,11 +991,33 @@ pub struct Pool {
     /// authorized funders
     /// [] because short size, fixed account size, and ease of use on
     /// client due to auto generated account size property
-    pub funders: [Pubkey; 4], // 32 * 4 = 128
+    pub funders: [Pubkey; 3], // 32 * 4 = 128
+    /// reward_a_rate in u128 form
+    pub reward_a_rate_u128: u128,
+    /// reward_b_rate in u128 form
+    pub reward_b_rate_u128: u128,
     /// Pool bump
     pub pool_bump: u8, // 1
     /// Total staked amount
     pub total_staked: u64,
+}
+
+impl Pool {
+    /// return reward a rate
+    pub fn get_reward_a_rate(&self) -> u128 {
+        if self.reward_a_rate_u128 == 0 {
+            return self._reward_a_rate.into();
+        }
+        return self.reward_a_rate_u128;
+    }
+
+    /// return reward b rate
+    pub fn get_reward_b_rate(&self) -> u128 {
+        if self.reward_b_rate_u128 == 0 {
+            return self._reward_b_rate.into();
+        }
+        return self.reward_b_rate_u128;
+    }
 }
 
 /// Farming user account
@@ -1064,21 +1113,6 @@ pub enum ErrorCode {
     /// Math opeartion overflow
     #[msg("Math operation overflow")]
     MathOverflow,
-}
-
-impl Debug for Pool {
-    /// writes a subset of pool fields for debugging
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        write!(f, "paused: {} reward_duration: {} reward_duration_end: {} reward_a_rate: {} reward_b_rate: {} reward_a_per_token_stored {} reward_b_per_token_stored {}",                
-        self.paused,
-        self.reward_duration,
-        self.reward_duration_end,
-        self.reward_a_rate,
-        self.reward_b_rate,
-        self.reward_a_per_token_stored,
-        self.reward_b_per_token_stored,
-    )
-    }
 }
 
 impl Debug for User {

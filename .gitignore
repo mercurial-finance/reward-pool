@@ -1,7 +1,8 @@
 
 .anchor
 .DS_Store
-target
+target/*
+!target/types
 test-ledger
 **/*.rs.bk
 /keys/
@@ -15,3 +16,4 @@ testing/
 deployment
 dist
 .env
+
