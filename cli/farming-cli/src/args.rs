@@ -148,6 +148,7 @@ pub enum CliCommand {
     },
 
     CheckFunderAllPool {},
+    MigrateFarmingRate {},
 }
 
 #[derive(Parser, Debug)]

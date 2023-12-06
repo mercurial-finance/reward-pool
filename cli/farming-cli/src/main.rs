@@ -99,6 +99,9 @@ fn main() -> Result<()> {
         CliCommand::CheckFunderAllPool {} => {
             check_funder_all_pool(&program)?;
         }
+        CliCommand::MigrateFarmingRate {} => {
+            migrate_farming_rate(&program)?;
+        }
     }
 
     Ok(())
@@ -445,6 +448,33 @@ fn check_funder_all_pool(program: &Program) -> Result<()> {
     for pool in pools.iter() {
         assert_eq!(pool.1.reward_a_rate_u128, 0);
         assert_eq!(pool.1.reward_b_rate_u128, 0);
+    }
+    Ok(())
+}
+
+fn migrate_farming_rate(program: &Program) -> Result<()> {
+    let pools: Vec<(Pubkey, Pool)> = program.accounts::<Pool>(vec![]).unwrap();
+
+    println!("len pool {}", pools.len());
+
+    for pool in pools.iter() {
+        let pool_state = pool.1.clone();
+        let mut should_migrate = false;
+        if pool_state.reward_a_rate_u128 == 0 && pool_state._reward_a_rate != 0 {
+            should_migrate = true;
+        }
+        if pool_state.reward_b_rate_u128 == 0 && pool_state._reward_b_rate != 0 {
+            should_migrate = true;
+        }
+
+        if should_migrate {
+            let builder = program
+                .request()
+                .accounts(farming::accounts::MigrateFarmingRate { pool: pool.0 })
+                .args(farming::instruction::MigrateFarmingRate {});
+            let signature = builder.send()?;
+            println!("Migrate pool {} signature {:?}", pool.0, signature);
+        }
     }
     Ok(())
 }
