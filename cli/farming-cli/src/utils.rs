@@ -1,7 +1,11 @@
-use anchor_client::{solana_sdk::pubkey::Pubkey, Program};
-
+use anchor_client::{
+    solana_sdk::{pubkey::Pubkey, signer::Signer},
+    Program,
+};
 use anyhow::Result;
 use spl_associated_token_account::{create_associated_token_account, get_associated_token_address};
+use std::ops::Deref;
+
 pub struct UserPDA {
     pub user: (Pubkey, u8),
 }
@@ -14,8 +18,8 @@ pub fn get_user_pda(pool: &Pubkey, owner: &Pubkey, program_id: &Pubkey) -> UserP
     }
 }
 
-pub fn get_or_create_ata(
-    program: &Program,
+pub fn get_or_create_ata<C: Deref<Target = impl Signer> + Clone>(
+    program: &Program<C>,
     wallet_address: &Pubkey,
     token_mint: &Pubkey,
 ) -> Result<Pubkey> {
@@ -41,8 +45,8 @@ pub struct PoolPDA {
     pub bump: u8,
 }
 
-pub fn get_pool_pda(
-    program: &Program,
+pub fn get_pool_pda<C: Deref<Target = impl Signer> + Clone>(
+    program: &Program<C>,
     reward_duration: u64,
     staking_mint: &Pubkey,
     reward_a_mint: &Pubkey,
@@ -64,11 +68,17 @@ pub fn get_pool_pda(
     })
 }
 
-pub fn get_pool(program: &Program, pool_pubkey: Pubkey) -> Result<farming::pool::Pool> {
+pub fn get_pool<C: Deref<Target = impl Signer> + Clone>(
+    program: &Program<C>,
+    pool_pubkey: Pubkey,
+) -> Result<farming::pool::Pool> {
     Ok(program.account(pool_pubkey)?)
 }
 
-pub fn get_user(program: &Program, user_pubkey: Pubkey) -> Result<farming::pool::User> {
+pub fn get_user<C: Deref<Target = impl Signer> + Clone>(
+    program: &Program<C>,
+    user_pubkey: Pubkey,
+) -> Result<farming::pool::User> {
     Ok(program.account(user_pubkey)?)
 }
 

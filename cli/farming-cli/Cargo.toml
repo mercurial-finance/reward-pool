@@ -1,6 +1,6 @@
 [package]
 name = "farming-cli"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -9,10 +9,9 @@ edition = "2021"
 clap = { version = "3.1.8", features = ["derive"] }
 farming = { path = "../../programs/farming" }
 shellexpand = "2.1.0"
-anchor-lang = "0.26.0"
-anchor-spl = "0.26.0"
-anchor-client = "0.26.0"
+anchor-lang = "0.28.0"
+anchor-spl = "0.28.0"
+anchor-client = "0.28.0"
 anyhow = "1.0.57"
-solana-program = "1.10.29"
-spl-token = { version = "3.5.0", features = ["no-entrypoint"] }
-spl-associated-token-account = { version = "1.0.3", features = ["no-entrypoint"] }
+solana-program = "1.16"
+spl-associated-token-account = { version = "2.2.0", features = ["no-entrypoint"] }

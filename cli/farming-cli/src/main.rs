@@ -3,20 +3,19 @@ mod utils;
 
 use crate::args::*;
 use crate::utils::*;
-use anyhow::Ok;
-use anyhow::Result;
-
-use anchor_client::solana_client::rpc_filter::RpcFilterType;
 use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use anchor_client::solana_sdk::signer::keypair::*;
 use anchor_client::solana_sdk::signer::Signer;
 use anchor_client::{Client, Program};
+use anchor_spl::token::spl_token;
+use anyhow::Ok;
+use anyhow::Result;
+use clap::*;
 use farming::Pool;
+use std::ops::Deref;
 use std::rc::Rc;
 use std::str::FromStr;
-
-use clap::*;
 
 fn main() -> Result<()> {
     let opts = Opts::parse();
@@ -34,7 +33,7 @@ fn main() -> Result<()> {
         CommitmentConfig::finalized(),
     );
 
-    let program = client.program(program_id);
+    let program = client.program(program_id)?;
     match opts.command {
         CliCommand::Init {
             staking_mint,
@@ -107,8 +106,8 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn initialize_pool(
-    program: &Program,
+fn initialize_pool<C: Deref<Target = impl Signer> + Clone>(
+    program: &Program<C>,
     base_location: String,
     authority: &Keypair,
     staking_mint: &Pubkey,
@@ -162,7 +161,11 @@ fn initialize_pool(
     Ok(())
 }
 
-pub fn create_user(program: &Program, owner: &Keypair, pool: &Pubkey) -> Result<()> {
+pub fn create_user<C: Deref<Target = impl Signer> + Clone>(
+    program: &Program<C>,
+    owner: &Keypair,
+    pool: &Pubkey,
+) -> Result<()> {
     let UserPDA { user } = get_user_pda(pool, &owner.pubkey(), &program.id());
     let (user_pubkey, _) = user;
     let builder = program
@@ -180,7 +183,11 @@ pub fn create_user(program: &Program, owner: &Keypair, pool: &Pubkey) -> Result<
     Ok(())
 }
 
-pub fn pause(program: &Program, authority: &Keypair, pool: &Pubkey) -> Result<()> {
+pub fn pause<C: Deref<Target = impl Signer> + Clone>(
+    program: &Program<C>,
+    authority: &Keypair,
+    pool: &Pubkey,
+) -> Result<()> {
     let builder = program
         .request()
         .accounts(farming::accounts::Pause {
@@ -194,7 +201,11 @@ pub fn pause(program: &Program, authority: &Keypair, pool: &Pubkey) -> Result<()
     Ok(())
 }
 
-pub fn unpause(program: &Program, authority: &Keypair, pool: &Pubkey) -> Result<()> {
+pub fn unpause<C: Deref<Target = impl Signer> + Clone>(
+    program: &Program<C>,
+    authority: &Keypair,
+    pool: &Pubkey,
+) -> Result<()> {
     let builder = program
         .request()
         .accounts(farming::accounts::Unpause {
@@ -208,7 +219,12 @@ pub fn unpause(program: &Program, authority: &Keypair, pool: &Pubkey) -> Result<
     Ok(())
 }
 
-pub fn stake(program: &Program, owner: &Keypair, pool_pda: &Pubkey, amount: u64) -> Result<()> {
+pub fn stake<C: Deref<Target = impl Signer> + Clone>(
+    program: &Program<C>,
+    owner: &Keypair,
+    pool_pda: &Pubkey,
+    amount: u64,
+) -> Result<()> {
     let pool = get_pool(program, *pool_pda)?;
     let UserPDA { user } = get_user_pda(pool_pda, &owner.pubkey(), &program.id());
     let (user_pubkey, _) = user;
@@ -233,8 +249,8 @@ pub fn stake(program: &Program, owner: &Keypair, pool_pda: &Pubkey, amount: u64)
     Ok(())
 }
 
-pub fn unstake(
-    program: &Program,
+pub fn unstake<C: Deref<Target = impl Signer> + Clone>(
+    program: &Program<C>,
     owner: &Keypair,
     pool_pda: &Pubkey,
     spt_amount: u64,
@@ -262,8 +278,8 @@ pub fn unstake(
     Ok(())
 }
 
-pub fn authorize_funder(
-    program: &Program,
+pub fn authorize_funder<C: Deref<Target = impl Signer> + Clone>(
+    program: &Program<C>,
     authority: &Keypair,
     pool: &Pubkey,
     funder_to_add: &Pubkey,
@@ -283,8 +299,8 @@ pub fn authorize_funder(
     Ok(())
 }
 
-pub fn deauthorize_funder(
-    program: &Program,
+pub fn deauthorize_funder<C: Deref<Target = impl Signer> + Clone>(
+    program: &Program<C>,
     authority: &Keypair,
     pool: &Pubkey,
     funder_to_remove: &Pubkey,
@@ -304,8 +320,8 @@ pub fn deauthorize_funder(
     Ok(())
 }
 
-pub fn fund(
-    program: &Program,
+pub fn fund<C: Deref<Target = impl Signer> + Clone>(
+    program: &Program<C>,
     funder: &Keypair,
     pool_pda: &Pubkey,
     amount_a: u64,
@@ -333,7 +349,11 @@ pub fn fund(
     Ok(())
 }
 
-pub fn claim(program: &Program, owner: &Keypair, pool_pda: &Pubkey) -> Result<()> {
+pub fn claim<C: Deref<Target = impl Signer> + Clone>(
+    program: &Program<C>,
+    owner: &Keypair,
+    pool_pda: &Pubkey,
+) -> Result<()> {
     let pool = get_pool(program, *pool_pda)?;
     let UserPDA { user } = get_user_pda(pool_pda, &owner.pubkey(), &program.id());
     let (user_pubkey, _) = user;
@@ -361,7 +381,11 @@ pub fn claim(program: &Program, owner: &Keypair, pool_pda: &Pubkey) -> Result<()
     Ok(())
 }
 
-pub fn close_user(program: &Program, owner: &Keypair, pool_pda: &Pubkey) -> Result<()> {
+pub fn close_user<C: Deref<Target = impl Signer> + Clone>(
+    program: &Program<C>,
+    owner: &Keypair,
+    pool_pda: &Pubkey,
+) -> Result<()> {
     let UserPDA { user } = get_user_pda(pool_pda, &owner.pubkey(), &program.id());
     let (user_pubkey, _) = user;
 
@@ -379,7 +403,11 @@ pub fn close_user(program: &Program, owner: &Keypair, pool_pda: &Pubkey) -> Resu
     Ok(())
 }
 
-pub fn close_pool(program: &Program, authority: &Keypair, pool_pda: &Pubkey) -> Result<()> {
+pub fn close_pool<C: Deref<Target = impl Signer> + Clone>(
+    program: &Program<C>,
+    authority: &Keypair,
+    pool_pda: &Pubkey,
+) -> Result<()> {
     let pool = get_pool(program, *pool_pda)?;
     let staking_refundee = get_or_create_ata(&program, &authority.pubkey(), &pool.staking_mint)?;
     let reward_a_refundee = get_or_create_ata(&program, &authority.pubkey(), &pool.reward_a_mint)?;
@@ -406,7 +434,10 @@ pub fn close_pool(program: &Program, authority: &Keypair, pool_pda: &Pubkey) -> 
     Ok(())
 }
 
-pub fn show_info(program: &Program, pool_pda: &Pubkey) -> Result<()> {
+pub fn show_info<C: Deref<Target = impl Signer> + Clone>(
+    program: &Program<C>,
+    pool_pda: &Pubkey,
+) -> Result<()> {
     let pool = get_pool(program, *pool_pda)?;
     println!("pool data {:#?}", pool);
     println!("pool_pubkey {:#?}", pool_pda);
@@ -416,7 +447,11 @@ pub fn show_info(program: &Program, pool_pda: &Pubkey) -> Result<()> {
     Ok(())
 }
 
-pub fn stake_info(program: &Program, pool_pda: &Pubkey, user: &Pubkey) -> Result<()> {
+pub fn stake_info<C: Deref<Target = impl Signer> + Clone>(
+    program: &Program<C>,
+    pool_pda: &Pubkey,
+    user: &Pubkey,
+) -> Result<()> {
     let UserPDA { user } = get_user_pda(pool_pda, &user, &program.id());
     let (user_pubkey, _) = user;
     let user = get_user(&program, user_pubkey)?;
@@ -440,7 +475,9 @@ pub fn stake_info(program: &Program, pool_pda: &Pubkey, user: &Pubkey) -> Result
     Ok(())
 }
 
-fn check_funder_all_pool(program: &Program) -> Result<()> {
+fn check_funder_all_pool<C: Deref<Target = impl Signer> + Clone>(
+    program: &Program<C>,
+) -> Result<()> {
     let pools: Vec<(Pubkey, Pool)> = program.accounts::<Pool>(vec![]).unwrap();
 
     println!("len pool {}", pools.len());
@@ -452,7 +489,9 @@ fn check_funder_all_pool(program: &Program) -> Result<()> {
     Ok(())
 }
 
-fn migrate_farming_rate(program: &Program) -> Result<()> {
+fn migrate_farming_rate<C: Deref<Target = impl Signer> + Clone>(
+    program: &Program<C>,
+) -> Result<()> {
     let pools: Vec<(Pubkey, Pool)> = program.accounts::<Pool>(vec![]).unwrap();
 
     println!("len pool {}", pools.len());
