@@ -1,5 +1,5 @@
 export type Farming = {
-  "version": "0.2.1",
+  "version": "0.2.2",
   "name": "farming",
   "docs": [
     "Dual farming program"
@@ -1065,7 +1065,7 @@ export type Farming = {
 };
 
 export const IDL: Farming = {
-  "version": "0.2.1",
+  "version": "0.2.2",
   "name": "farming",
   "docs": [
     "Dual farming program"
