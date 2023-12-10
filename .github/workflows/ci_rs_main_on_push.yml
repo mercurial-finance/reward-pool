@@ -13,9 +13,9 @@ on:
       - develop
 
 env:
-  SOLANA_CLI_VERSION: 1.14.6
+  SOLANA_CLI_VERSION: 1.16.22
   NODE_VERSION: 14.18.1
-  ANCHOR_CLI_VERSION: 0.25.0
+  ANCHOR_CLI_VERSION: 0.28.0
 
 jobs:
   changed_files:
