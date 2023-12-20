@@ -306,7 +306,7 @@ export class PoolFarmImpl {
     }).add(depositTx);
   }
 
-  public async withdraw(owner: PublicKey, amount: BN) {
+  public async withdraw(owner: PublicKey, amount: BN, shouldClaim = false) {
     const userPda = this.getUserPda(owner);
 
     const instructions: TransactionInstruction[] = [];
@@ -316,6 +316,13 @@ export class PoolFarmImpl {
       this.program.provider.connection
     );
     userStakingIx && instructions.push(userStakingIx);
+
+    const postInstructions = [];
+    if (shouldClaim) {
+      const claimMethod = await this.claimMethodBuilder(owner);
+      const claimIx = await claimMethod.instruction();
+      postInstructions.push(claimIx);
+    }
 
     const withdrawTx = await this.program.methods
       .withdraw(amount)
@@ -328,6 +335,7 @@ export class PoolFarmImpl {
         user: userPda,
       })
       .preInstructions(instructions)
+      .postInstructions(postInstructions)
       .transaction();
 
     return new Transaction({
