@@ -3,7 +3,10 @@ mod utils;
 
 use crate::args::*;
 use crate::utils::*;
+use anchor_client::anchor_lang::InstructionData;
+use anchor_client::anchor_lang::ToAccountMetas;
 use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
+use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use anchor_client::solana_sdk::signer::keypair::*;
 use anchor_client::solana_sdk::signer::Signer;
@@ -13,6 +16,7 @@ use anyhow::Ok;
 use anyhow::Result;
 use clap::*;
 use farming::Pool;
+use solana_program::instruction::Instruction;
 use std::ops::Deref;
 use std::rc::Rc;
 use std::str::FromStr;
@@ -34,6 +38,7 @@ fn main() -> Result<()> {
     );
 
     let program = client.program(program_id)?;
+    let priority_fee = opts.config_override.priority_fee;
     match opts.command {
         CliCommand::Init {
             staking_mint,
@@ -44,6 +49,7 @@ fn main() -> Result<()> {
             let base = opts.config_override.base;
             initialize_pool(
                 &program,
+                priority_fee,
                 base,
                 &payer,
                 &staking_mint,
@@ -53,41 +59,41 @@ fn main() -> Result<()> {
             )?;
         }
         CliCommand::CreateUser { pool } => {
-            create_user(&program, &payer, &pool)?;
+            create_user(&program, priority_fee, &payer, &pool)?;
         }
         CliCommand::Pause { pool } => {
-            pause(&program, &payer, &pool)?;
+            pause(&program, priority_fee, &payer, &pool)?;
         }
         CliCommand::Unpause { pool } => {
-            unpause(&program, &payer, &pool)?;
+            unpause(&program, priority_fee, &payer, &pool)?;
         }
         CliCommand::Deposit { pool, amount } => {
-            stake(&program, &payer, &pool, amount)?;
+            stake(&program, priority_fee, &payer, &pool, amount)?;
         }
         CliCommand::Withdraw { pool, spt_amount } => {
-            unstake(&program, &payer, &pool, spt_amount)?;
+            unstake(&program, priority_fee, &payer, &pool, spt_amount)?;
         }
         CliCommand::Authorize { pool, funder } => {
-            authorize_funder(&program, &payer, &pool, &funder)?;
+            authorize_funder(&program, priority_fee, &payer, &pool, &funder)?;
         }
         CliCommand::Deauthorize { pool, funder } => {
-            deauthorize_funder(&program, &payer, &pool, &funder)?;
+            deauthorize_funder(&program, priority_fee, &payer, &pool, &funder)?;
         }
         CliCommand::Fund {
             pool,
             amount_a,
             amount_b,
         } => {
-            fund(&program, &payer, &pool, amount_a, amount_b)?;
+            fund(&program, priority_fee, &payer, &pool, amount_a, amount_b)?;
         }
         CliCommand::Claim { pool } => {
-            claim(&program, &payer, &pool)?;
+            claim(&program, priority_fee, &payer, &pool)?;
         }
         CliCommand::CloseUser { pool } => {
-            close_user(&program, &payer, &pool)?;
+            close_user(&program, priority_fee, &payer, &pool)?;
         }
         CliCommand::ClosePool { pool } => {
-            close_pool(&program, &payer, &pool)?;
+            close_pool(&program, priority_fee, &payer, &pool)?;
         }
         CliCommand::ShowInfo { pool } => {
             show_info(&program, &pool)?;
@@ -108,6 +114,7 @@ fn main() -> Result<()> {
 
 fn initialize_pool<C: Deref<Target = impl Signer> + Clone>(
     program: &Program<C>,
+    priority_fee: Option<u64>,
     base_location: String,
     authority: &Keypair,
     staking_mint: &Pubkey,
@@ -137,9 +144,15 @@ fn initialize_pool<C: Deref<Target = impl Signer> + Clone>(
     let (reward_a_vault_pubkey, _) = reward_a_vault;
     let (reward_b_vault_pubkey, _) = reward_b_vault;
 
-    let builder = program
-        .request()
-        .accounts(farming::accounts::InitializePool {
+    let mut instructions = vec![];
+    if let Some(priority_fee) = priority_fee {
+        instructions.push(ComputeBudgetInstruction::set_compute_unit_price(
+            priority_fee,
+        ));
+    }
+    instructions.push(Instruction {
+        program_id: program.id(),
+        accounts: farming::accounts::InitializePool {
             pool: pool_pda.pubkey,
             staking_mint: *staking_mint,
             staking_vault: staking_vault_pubkey,
@@ -152,10 +165,16 @@ fn initialize_pool<C: Deref<Target = impl Signer> + Clone>(
             system_program: solana_program::system_program::ID,
             token_program: spl_token::ID,
             rent: solana_program::sysvar::rent::ID,
-        })
-        .args(farming::instruction::InitializePool { reward_duration })
-        .signer(authority)
-        .signer(&base_keypair);
+        }
+        .to_account_metas(None),
+        data: farming::instruction::InitializePool { reward_duration }.data(),
+    });
+
+    let builder = program.request();
+    let builder = instructions
+        .into_iter()
+        .fold(builder, |bld, ix| bld.instruction(ix));
+    let builder = builder.signer(authority).signer(&base_keypair);
     let signature = builder.send()?;
     println!("Signature {:?}", signature);
     Ok(())
@@ -163,21 +182,36 @@ fn initialize_pool<C: Deref<Target = impl Signer> + Clone>(
 
 pub fn create_user<C: Deref<Target = impl Signer> + Clone>(
     program: &Program<C>,
+    priority_fee: Option<u64>,
     owner: &Keypair,
     pool: &Pubkey,
 ) -> Result<()> {
     let UserPDA { user } = get_user_pda(pool, &owner.pubkey(), &program.id());
     let (user_pubkey, _) = user;
-    let builder = program
-        .request()
-        .accounts(farming::accounts::CreateUser {
+
+    let mut instructions = vec![];
+    if let Some(priority_fee) = priority_fee {
+        instructions.push(ComputeBudgetInstruction::set_compute_unit_price(
+            priority_fee,
+        ));
+    }
+    instructions.push(Instruction {
+        program_id: program.id(),
+        accounts: farming::accounts::CreateUser {
             pool: *pool,
             user: user_pubkey,
             owner: owner.pubkey(),
             system_program: solana_program::system_program::ID,
-        })
-        .args(farming::instruction::CreateUser {})
-        .signer(owner);
+        }
+        .to_account_metas(None),
+        data: farming::instruction::CreateUser {}.data(),
+    });
+    let builder = program.request();
+    let builder = instructions
+        .into_iter()
+        .fold(builder, |bld, ix| bld.instruction(ix));
+    let builder = builder.signer(owner);
+
     let signature = builder.send()?;
     println!("Signature {:?}", signature);
     Ok(())
@@ -185,17 +219,31 @@ pub fn create_user<C: Deref<Target = impl Signer> + Clone>(
 
 pub fn pause<C: Deref<Target = impl Signer> + Clone>(
     program: &Program<C>,
+    priority_fee: Option<u64>,
     authority: &Keypair,
     pool: &Pubkey,
 ) -> Result<()> {
-    let builder = program
-        .request()
-        .accounts(farming::accounts::Pause {
+    let mut instructions = vec![];
+    if let Some(priority_fee) = priority_fee {
+        instructions.push(ComputeBudgetInstruction::set_compute_unit_price(
+            priority_fee,
+        ));
+    }
+    instructions.push(Instruction {
+        program_id: program.id(),
+        accounts: farming::accounts::Pause {
             pool: *pool,
             authority: authority.pubkey(),
-        })
-        .args(farming::instruction::Pause {})
-        .signer(authority);
+        }
+        .to_account_metas(None),
+        data: farming::instruction::Pause {}.data(),
+    });
+    let builder = program.request();
+    let builder = instructions
+        .into_iter()
+        .fold(builder, |bld, ix| bld.instruction(ix));
+    let builder = builder.signer(authority);
+
     let signature = builder.send()?;
     println!("Signature {:?}", signature);
     Ok(())
@@ -203,17 +251,31 @@ pub fn pause<C: Deref<Target = impl Signer> + Clone>(
 
 pub fn unpause<C: Deref<Target = impl Signer> + Clone>(
     program: &Program<C>,
+    priority_fee: Option<u64>,
     authority: &Keypair,
     pool: &Pubkey,
 ) -> Result<()> {
-    let builder = program
-        .request()
-        .accounts(farming::accounts::Unpause {
+    let mut instructions = vec![];
+    if let Some(priority_fee) = priority_fee {
+        instructions.push(ComputeBudgetInstruction::set_compute_unit_price(
+            priority_fee,
+        ));
+    }
+    instructions.push(Instruction {
+        program_id: program.id(),
+        accounts: farming::accounts::Unpause {
             pool: *pool,
             authority: authority.pubkey(),
-        })
-        .args(farming::instruction::Unpause {})
-        .signer(authority);
+        }
+        .to_account_metas(None),
+        data: farming::instruction::Unpause {}.data(),
+    });
+    let builder = program.request();
+    let builder = instructions
+        .into_iter()
+        .fold(builder, |bld, ix| bld.instruction(ix));
+    let builder = builder.signer(authority);
+
     let signature = builder.send()?;
     println!("Signature {:?}", signature);
     Ok(())
@@ -221,6 +283,7 @@ pub fn unpause<C: Deref<Target = impl Signer> + Clone>(
 
 pub fn stake<C: Deref<Target = impl Signer> + Clone>(
     program: &Program<C>,
+    priority_fee: Option<u64>,
     owner: &Keypair,
     pool_pda: &Pubkey,
     amount: u64,
@@ -231,18 +294,31 @@ pub fn stake<C: Deref<Target = impl Signer> + Clone>(
 
     let stake_from_account = get_or_create_ata(&program, &owner.pubkey(), &pool.staking_mint)?;
 
-    let builder = program
-        .request()
-        .accounts(farming::accounts::Deposit {
+    let mut instructions = vec![];
+    if let Some(priority_fee) = priority_fee {
+        instructions.push(ComputeBudgetInstruction::set_compute_unit_price(
+            priority_fee,
+        ));
+    }
+    instructions.push(Instruction {
+        program_id: program.id(),
+        accounts: farming::accounts::Deposit {
             pool: *pool_pda,
             staking_vault: pool.staking_vault,
             stake_from_account,
             user: user_pubkey,
             owner: owner.pubkey(),
             token_program: spl_token::ID,
-        })
-        .args(farming::instruction::Deposit { amount })
-        .signer(owner);
+        }
+        .to_account_metas(None),
+        data: farming::instruction::Deposit { amount }.data(),
+    });
+    let builder = program.request();
+    let builder = instructions
+        .into_iter()
+        .fold(builder, |bld, ix| bld.instruction(ix));
+    let builder = builder.signer(owner);
+
     let signature = builder.send()?;
     println!("Signature {:?}", signature);
 
@@ -251,6 +327,7 @@ pub fn stake<C: Deref<Target = impl Signer> + Clone>(
 
 pub fn unstake<C: Deref<Target = impl Signer> + Clone>(
     program: &Program<C>,
+    priority_fee: Option<u64>,
     owner: &Keypair,
     pool_pda: &Pubkey,
     spt_amount: u64,
@@ -260,18 +337,31 @@ pub fn unstake<C: Deref<Target = impl Signer> + Clone>(
     let (user_pubkey, _) = user;
     let stake_from_account = get_or_create_ata(&program, &owner.pubkey(), &pool.staking_mint)?;
 
-    let builder = program
-        .request()
-        .accounts(farming::accounts::Deposit {
+    let mut instructions = vec![];
+    if let Some(priority_fee) = priority_fee {
+        instructions.push(ComputeBudgetInstruction::set_compute_unit_price(
+            priority_fee,
+        ));
+    }
+    instructions.push(Instruction {
+        program_id: program.id(),
+        accounts: farming::accounts::Deposit {
             pool: *pool_pda,
             staking_vault: pool.staking_vault,
-            user: user_pubkey,
             stake_from_account,
+            user: user_pubkey,
             owner: owner.pubkey(),
             token_program: spl_token::ID,
-        })
-        .args(farming::instruction::Withdraw { spt_amount })
-        .signer(owner);
+        }
+        .to_account_metas(None),
+        data: farming::instruction::Withdraw { spt_amount }.data(),
+    });
+    let builder = program.request();
+    let builder = instructions
+        .into_iter()
+        .fold(builder, |bld, ix| bld.instruction(ix));
+    let builder = builder.signer(owner);
+
     let signature = builder.send()?;
     println!("Signature {:?}", signature);
 
@@ -280,20 +370,35 @@ pub fn unstake<C: Deref<Target = impl Signer> + Clone>(
 
 pub fn authorize_funder<C: Deref<Target = impl Signer> + Clone>(
     program: &Program<C>,
+    priority_fee: Option<u64>,
     authority: &Keypair,
     pool: &Pubkey,
     funder_to_add: &Pubkey,
 ) -> Result<()> {
-    let builder = program
-        .request()
-        .accounts(farming::accounts::FunderChange {
+    let mut instructions = vec![];
+    if let Some(priority_fee) = priority_fee {
+        instructions.push(ComputeBudgetInstruction::set_compute_unit_price(
+            priority_fee,
+        ));
+    }
+    instructions.push(Instruction {
+        program_id: program.id(),
+        accounts: farming::accounts::FunderChange {
             pool: *pool,
             authority: authority.pubkey(),
-        })
-        .args(farming::instruction::AuthorizeFunder {
+        }
+        .to_account_metas(None),
+        data: farming::instruction::AuthorizeFunder {
             funder_to_add: *funder_to_add,
-        })
-        .signer(authority);
+        }
+        .data(),
+    });
+    let builder = program.request();
+    let builder = instructions
+        .into_iter()
+        .fold(builder, |bld, ix| bld.instruction(ix));
+    let builder = builder.signer(authority);
+
     let signature = builder.send()?;
     println!("Signature {:?}", signature);
     Ok(())
@@ -301,20 +406,35 @@ pub fn authorize_funder<C: Deref<Target = impl Signer> + Clone>(
 
 pub fn deauthorize_funder<C: Deref<Target = impl Signer> + Clone>(
     program: &Program<C>,
+    priority_fee: Option<u64>,
     authority: &Keypair,
     pool: &Pubkey,
     funder_to_remove: &Pubkey,
 ) -> Result<()> {
-    let builder = program
-        .request()
-        .accounts(farming::accounts::FunderChange {
+    let mut instructions = vec![];
+    if let Some(priority_fee) = priority_fee {
+        instructions.push(ComputeBudgetInstruction::set_compute_unit_price(
+            priority_fee,
+        ));
+    }
+    instructions.push(Instruction {
+        program_id: program.id(),
+        accounts: farming::accounts::FunderChange {
             pool: *pool,
             authority: authority.pubkey(),
-        })
-        .args(farming::instruction::DeauthorizeFunder {
+        }
+        .to_account_metas(None),
+        data: farming::instruction::DeauthorizeFunder {
             funder_to_remove: *funder_to_remove,
-        })
-        .signer(authority);
+        }
+        .data(),
+    });
+    let builder = program.request();
+    let builder = instructions
+        .into_iter()
+        .fold(builder, |bld, ix| bld.instruction(ix));
+    let builder = builder.signer(authority);
+
     let signature = builder.send()?;
     println!("Signature {:?}", signature);
     Ok(())
@@ -322,6 +442,7 @@ pub fn deauthorize_funder<C: Deref<Target = impl Signer> + Clone>(
 
 pub fn fund<C: Deref<Target = impl Signer> + Clone>(
     program: &Program<C>,
+    priority_fee: Option<u64>,
     funder: &Keypair,
     pool_pda: &Pubkey,
     amount_a: u64,
@@ -330,9 +451,16 @@ pub fn fund<C: Deref<Target = impl Signer> + Clone>(
     let pool = get_pool(program, *pool_pda)?;
     let from_a = get_or_create_ata(&program, &funder.pubkey(), &pool.reward_a_mint)?;
     let from_b = get_or_create_ata(&program, &funder.pubkey(), &pool.reward_b_mint)?;
-    let builder = program
-        .request()
-        .accounts(farming::accounts::Fund {
+
+    let mut instructions = vec![];
+    if let Some(priority_fee) = priority_fee {
+        instructions.push(ComputeBudgetInstruction::set_compute_unit_price(
+            priority_fee,
+        ));
+    }
+    instructions.push(Instruction {
+        program_id: program.id(),
+        accounts: farming::accounts::Fund {
             pool: *pool_pda,
             staking_vault: pool.staking_vault,
             reward_a_vault: pool.reward_a_vault,
@@ -341,9 +469,16 @@ pub fn fund<C: Deref<Target = impl Signer> + Clone>(
             from_a,
             from_b,
             token_program: spl_token::ID,
-        })
-        .args(farming::instruction::Fund { amount_a, amount_b })
-        .signer(funder);
+        }
+        .to_account_metas(None),
+        data: farming::instruction::Fund { amount_a, amount_b }.data(),
+    });
+    let builder = program.request();
+    let builder = instructions
+        .into_iter()
+        .fold(builder, |bld, ix| bld.instruction(ix));
+    let builder = builder.signer(funder);
+
     let signature = builder.send()?;
     println!("Signature {:?}", signature);
     Ok(())
@@ -351,6 +486,7 @@ pub fn fund<C: Deref<Target = impl Signer> + Clone>(
 
 pub fn claim<C: Deref<Target = impl Signer> + Clone>(
     program: &Program<C>,
+    priority_fee: Option<u64>,
     owner: &Keypair,
     pool_pda: &Pubkey,
 ) -> Result<()> {
@@ -361,9 +497,15 @@ pub fn claim<C: Deref<Target = impl Signer> + Clone>(
     let reward_a_account = get_or_create_ata(&program, &owner.pubkey(), &pool.reward_a_mint)?;
     let reward_b_account = get_or_create_ata(&program, &owner.pubkey(), &pool.reward_b_mint)?;
 
-    let builder = program
-        .request()
-        .accounts(farming::accounts::ClaimReward {
+    let mut instructions = vec![];
+    if let Some(priority_fee) = priority_fee {
+        instructions.push(ComputeBudgetInstruction::set_compute_unit_price(
+            priority_fee,
+        ));
+    }
+    instructions.push(Instruction {
+        program_id: program.id(),
+        accounts: farming::accounts::ClaimReward {
             pool: *pool_pda,
             staking_vault: pool.staking_vault,
             reward_a_vault: pool.reward_a_vault,
@@ -373,9 +515,16 @@ pub fn claim<C: Deref<Target = impl Signer> + Clone>(
             reward_a_account,
             reward_b_account,
             token_program: spl_token::ID,
-        })
-        .args(farming::instruction::Claim {})
-        .signer(owner);
+        }
+        .to_account_metas(None),
+        data: farming::instruction::Claim {}.data(),
+    });
+    let builder = program.request();
+    let builder = instructions
+        .into_iter()
+        .fold(builder, |bld, ix| bld.instruction(ix));
+    let builder = builder.signer(owner);
+
     let signature = builder.send()?;
     println!("Signature {:?}", signature);
     Ok(())
@@ -383,21 +532,35 @@ pub fn claim<C: Deref<Target = impl Signer> + Clone>(
 
 pub fn close_user<C: Deref<Target = impl Signer> + Clone>(
     program: &Program<C>,
+    priority_fee: Option<u64>,
     owner: &Keypair,
     pool_pda: &Pubkey,
 ) -> Result<()> {
     let UserPDA { user } = get_user_pda(pool_pda, &owner.pubkey(), &program.id());
     let (user_pubkey, _) = user;
 
-    let builder = program
-        .request()
-        .accounts(farming::accounts::CloseUser {
+    let mut instructions = vec![];
+    if let Some(priority_fee) = priority_fee {
+        instructions.push(ComputeBudgetInstruction::set_compute_unit_price(
+            priority_fee,
+        ));
+    }
+    instructions.push(Instruction {
+        program_id: program.id(),
+        accounts: farming::accounts::CloseUser {
             pool: *pool_pda,
             user: user_pubkey,
             owner: owner.pubkey(),
-        })
-        .args(farming::instruction::Claim {})
-        .signer(owner);
+        }
+        .to_account_metas(None),
+        data: farming::instruction::CloseUser {}.data(),
+    });
+    let builder = program.request();
+    let builder = instructions
+        .into_iter()
+        .fold(builder, |bld, ix| bld.instruction(ix));
+    let builder = builder.signer(owner);
+
     let signature = builder.send()?;
     println!("Signature {:?}", signature);
     Ok(())
@@ -405,6 +568,7 @@ pub fn close_user<C: Deref<Target = impl Signer> + Clone>(
 
 pub fn close_pool<C: Deref<Target = impl Signer> + Clone>(
     program: &Program<C>,
+    priority_fee: Option<u64>,
     authority: &Keypair,
     pool_pda: &Pubkey,
 ) -> Result<()> {
@@ -413,9 +577,15 @@ pub fn close_pool<C: Deref<Target = impl Signer> + Clone>(
     let reward_a_refundee = get_or_create_ata(&program, &authority.pubkey(), &pool.reward_a_mint)?;
     let reward_b_refundee = get_or_create_ata(&program, &authority.pubkey(), &pool.reward_b_mint)?;
 
-    let builder = program
-        .request()
-        .accounts(farming::accounts::ClosePool {
+    let mut instructions = vec![];
+    if let Some(priority_fee) = priority_fee {
+        instructions.push(ComputeBudgetInstruction::set_compute_unit_price(
+            priority_fee,
+        ));
+    }
+    instructions.push(Instruction {
+        program_id: program.id(),
+        accounts: farming::accounts::ClosePool {
             refundee: authority.pubkey(),
             staking_refundee,
             reward_a_refundee,
@@ -426,9 +596,16 @@ pub fn close_pool<C: Deref<Target = impl Signer> + Clone>(
             reward_a_vault: pool.reward_a_vault,
             reward_b_vault: pool.reward_b_vault,
             token_program: spl_token::ID,
-        })
-        .args(farming::instruction::ClosePool {})
-        .signer(authority);
+        }
+        .to_account_metas(None),
+        data: farming::instruction::ClosePool {}.data(),
+    });
+    let builder = program.request();
+    let builder = instructions
+        .into_iter()
+        .fold(builder, |bld, ix| bld.instruction(ix));
+    let builder = builder.signer(authority);
+
     let signature = builder.send()?;
     println!("Signature {:?}", signature);
     Ok(())

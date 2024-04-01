@@ -35,6 +35,10 @@ pub struct ConfigOverride {
     default_value_t = farming::id().to_string()
     )]
     pub program_id: String,
+
+    /// Priority fee
+    #[clap(    global = true, long)]
+    pub priority_fee: Option<u64>,
 }
 
 #[derive(Parser, Debug)]
