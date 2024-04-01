@@ -37,7 +37,7 @@ pub struct ConfigOverride {
     pub program_id: String,
 
     /// Priority fee
-    #[clap(    global = true, long)]
+    #[clap(global = true, long)]
     pub priority_fee: Option<u64>,
 }
 
