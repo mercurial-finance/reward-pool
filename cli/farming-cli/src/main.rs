@@ -479,8 +479,10 @@ pub fn fund<C: Deref<Target = impl Signer> + Clone>(
         .fold(builder, |bld, ix| bld.instruction(ix));
     let builder = builder.signer(funder);
 
-    let signature = builder.send()?;
-    println!("Signature {:?}", signature);
+    let signature = builder.send();
+    println!("Signature {:#?}", signature);
+    signature?;
+
     Ok(())
 }
 
