@@ -399,8 +399,9 @@ pub fn authorize_funder<C: Deref<Target = impl Signer> + Clone>(
         .fold(builder, |bld, ix| bld.instruction(ix));
     let builder = builder.signer(authority);
 
-    let signature = builder.send()?;
-    println!("Signature {:?}", signature);
+    let signature = builder.send();
+    println!("Signature {:#?}", signature);
+    signature?;
     Ok(())
 }
 
