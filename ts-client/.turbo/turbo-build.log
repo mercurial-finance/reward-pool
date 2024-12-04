@@ -1,0 +1,5 @@
+
+
+> @meteora-ag/farm-sdk@1.0.17 build /Users/mcsam/Development/meteora-monorepo/packages/farm-sdk/ts-client
+> rm -rf dist && tsc -p tsconfig.build.json && tsc -p tsconfig.esm.json
+

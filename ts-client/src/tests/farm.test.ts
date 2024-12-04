@@ -1,11 +1,9 @@
 import { Cluster, Connection, Keypair, PublicKey } from "@solana/web3.js";
-import AmmImpl from "@mercurial-finance/dynamic-amm-sdk";
+import AmmImpl from "@meteora-ag/dynamic-amm-sdk";
 import { PoolFarmImpl } from "../farm";
 import { AnchorProvider, BN, Wallet } from "@coral-xyz/anchor";
 import { bs58 } from "@coral-xyz/anchor/dist/cjs/utils/bytes";
 import { airDropSol, getFarmProgram } from "../utils";
-import { DEVNET_COIN } from "../constant";
-import { TokenListProvider } from "@solana/spl-token-registry";
 
 const DEVNET_POOL = new PublicKey(
   "BAHscmu1NncGS7t4rc5gSBPv1UFEMkvLaon1Ahdd5rHi"
@@ -43,26 +41,19 @@ describe("Interact with devnet farm", () => {
   beforeAll(async () => {
     await airDropSol(DEVNET.connection, mockWallet.publicKey).catch(() => {});
 
-    const USDT = DEVNET_COIN.find(
-      (token) =>
-        token.address === "9NGDi2tZtNmCCp8SVLKNuGjuWAVwNF3Vap5tT8km5er9"
-    );
-    const USDC = DEVNET_COIN.find(
-      (token) => token.address === "zVzi5VAf4qMEwzv7NXECVx5v2pQ7xnqVVjCXZwS9XzA"
-    );
+    const USDT = new PublicKey("9NGDi2tZtNmCCp8SVLKNuGjuWAVwNF3Vap5tT8km5er9");
+    const USDC = new PublicKey("zVzi5VAf4qMEwzv7NXECVx5v2pQ7xnqVVjCXZwS9XzA");
 
     const pool = await AmmImpl.create(
       DEVNET.connection,
       new PublicKey(DEVNET_POOL),
-      USDT!,
-      USDC!,
       {
         cluster: DEVNET.cluster as Cluster,
       }
     );
 
-    const inAmountALamport = new BN(0.1 * 10 ** pool.tokenA.decimals);
-    const inAmountBLamport = new BN(0.1 * 10 ** pool.tokenB.decimals);
+    const inAmountALamport = new BN(0.1 * 10 ** pool.tokenAMint.decimals);
+    const inAmountBLamport = new BN(0.1 * 10 ** pool.tokenBMint.decimals);
 
     const { minPoolTokenAmountOut, tokenAInAmount, tokenBInAmount } =
       pool.getDepositQuote(inAmountALamport, inAmountBLamport, false, 1);
@@ -88,6 +79,8 @@ describe("Interact with devnet farm", () => {
       DEVNET_POOL,
       "devnet"
     );
+    if (!farmingPool[0]) throw new Error("No farming pool found");
+
     farm = await PoolFarmImpl.create(
       DEVNET.connection,
       farmingPool[0].farmAddress
@@ -136,9 +129,10 @@ describe("Interact with mainnet farm", () => {
 
   let farm: PoolFarmImpl;
   beforeAll(async () => {
-    const farmingPool = await PoolFarmImpl.getFarmAddressesByPoolAddress(
-      MAINNET_POOL
-    );
+    const farmingPool =
+      await PoolFarmImpl.getFarmAddressesByPoolAddress(MAINNET_POOL);
+    if (!farmingPool[0]) throw new Error("No farming pool found");
+
     farm = await PoolFarmImpl.create(
       MAINNET.connection,
       farmingPool[0].farmAddress

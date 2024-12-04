@@ -1,0 +1,8 @@
+{
+  "extends": "@meteora-ag/config/typescript/sdk",
+  "compilerOptions": {
+    "outDir": "dist/esm/",
+    "target": "ES6",
+    "module": "ESNext"
+  }
+}

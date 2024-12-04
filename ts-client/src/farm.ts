@@ -21,7 +21,7 @@ import {
   parseLogs,
 } from "./utils";
 import { FARM_PROGRAM_ID } from "./constant";
-import { chunkedGetMultipleAccountInfos } from "@mercurial-finance/dynamic-amm-sdk/dist/cjs/src/amm/utils";
+import { chunkedGetMultipleAccountInfos } from "@meteora-ag/dynamic-amm-sdk/dist/cjs/src/amm/utils";
 
 const chunkedFetchMultipleUserAccount = async (
   program: FarmProgram,
@@ -117,6 +117,7 @@ export class PoolFarmImpl {
 
     return poolsState.map((poolState, idx) => {
       const address = farmList[idx];
+      if (!address) throw new Error("No pool address found");
       return new PoolFarmImpl(address, program, eventParser, poolState, {
         cluster,
       });
@@ -135,11 +136,13 @@ export class PoolFarmImpl {
 
     if (!farms.length) throw new Error("No pool address found ");
 
-    return farms.map((farm) => ({
-      farmAddress: new PublicKey(farm.farming_pool),
-      APY: farm.farming_apy,
-      expired: farm.farm_expire,
-    }));
+    return farms
+      .filter(({ farming_pool }) => !!farming_pool)
+      .map((farm) => ({
+        farmAddress: new PublicKey(farm.farming_pool!),
+        APY: farm.farming_apy,
+        expired: farm.farm_expire,
+      }));
   }
 
   public static async getFarmAddressesByLp(
@@ -154,11 +157,13 @@ export class PoolFarmImpl {
 
     if (!farms.length) throw new Error("No pool address found ");
 
-    return farms.map((farm) => ({
-      farmAddress: new PublicKey(farm.farming_pool),
-      APY: farm.farming_apy,
-      expired: farm.farm_expire,
-    }));
+    return farms
+      .filter(({ farming_pool }) => !!farming_pool)
+      .map((farm) => ({
+        farmAddress: new PublicKey(farm.farming_pool!),
+        APY: farm.farming_apy,
+        expired: farm.farm_expire,
+      }));
   }
 
   public static async getUserBalances(
@@ -236,9 +241,10 @@ export class PoolFarmImpl {
       FARM_PROGRAM_ID
     );
 
-    const userState = await this.program.account.user.fetchNullable(
-      userStakingAddress
-    );
+    const userState =
+      await this.program.account.user.fetchNullable(userStakingAddress);
+
+    if (!userState) return new BN(0);
 
     return userState.balanceStaked;
   }
@@ -430,11 +436,13 @@ export class PoolFarmImpl {
 
     const [clockAccountInfo, ...restAccounts] = accounts;
     const clockData = clockAccountInfo?.data;
+    if (!clockData) throw new Error("Clock data not found");
     const onChainTime = Number(clockData.readBigInt64LE(8 * 4));
 
     const poolStatesMap = new Map();
     for (let i = 0; i < farmMints.length; i++) {
       const farmMint = farmMints[i];
+      if (!farmMint) throw new Error("Farm mint not found");
       const poolAccount = restAccounts[i];
       const userPdaAccount = restAccounts[i + farmMints.length];
 
