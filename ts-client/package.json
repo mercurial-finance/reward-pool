@@ -1,36 +1,38 @@
 {
-  "name": "@mercurial-finance/farming-sdk",
+  "name": "@meteora-ag/farm-sdk",
   "version": "1.0.17",
   "description": "",
-  "main": "./dist/index.js",
-  "module": "./dist/index.mjs",
-  "source": "./src/index.ts",
-  "types": "./dist/index.d.ts",
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.js",
   "files": [
-    "dist/**"
+    "dist"
   ],
   "scripts": {
+    "postclone": "pnpm rm @meteora-ag/config @meteora-ag/dynamic-amm-sdk && pnpm i -D @meteora-ag/config && pnpm i @meteora-ag/dynamic-amm-sdk",
+    "dev": "rm -rf dist && tsc -p tsconfig.dev.json --watch",
     "test": "jest ./src/tests/*.test.ts --runInBand --setupFiles dotenv/config",
-    "build": "tsup"
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && tsc -p tsconfig.esm.json"
   },
   "keywords": [],
-  "author": "McSam",
+  "author": "meteora-ag",
   "license": "ISC",
   "devDependencies": {
-    "@mercurial-finance/dynamic-amm-sdk": "^0.4.7",
+    "@meteora-ag/config": "workspace:*",
     "@types/jest": "^29.5.3",
     "jest": "^29.6.2",
     "ts-jest": "^29.1.1",
-    "tsup": "^7.1.0",
-    "typescript": "^4.7.2"
+    "typescript": "5.5.4"
   },
   "dependencies": {
-    "@coral-xyz/anchor": "0.28.0",
-    "@solana/spl-token": "^0.1.8",
-    "@solana/spl-token-registry": "^0.2.4574",
-    "@solana/web3.js": "~1.78.3",
+    "@meteora-ag/dynamic-amm-sdk": "workspace:*",
     "buffer-layout": "^1.2.2",
     "node-fetch": "^2.6.12"
+  },
+  "peerDependencies": {
+    "@coral-xyz/anchor": "^0.28.0",
+    "@solana/spl-token": "^0.4.9",
+    "@solana/web3.js": "^1.95.5",
+    "bn.js": "^5.2.1"
   },
   "publishConfig": {
     "access": "public"

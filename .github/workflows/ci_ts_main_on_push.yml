@@ -44,12 +44,12 @@ jobs:
         uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node }}
-      - uses: pnpm/action-setup@v2.2.2
+      - uses: pnpm/action-setup@v4
         with:
-          version: 6.0.2
+          version: 9
       - name: Install dependencies
         working-directory: ${{ env.working_dir }}
-        run: pnpm install
+        run: pnpm run postclone && pnpm install
       - name: create env file
         working-directory: ${{ env.working_dir }}
         run: |
